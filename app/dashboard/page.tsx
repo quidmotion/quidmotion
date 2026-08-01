@@ -43,6 +43,8 @@ export default async function DashboardPage() {
   const gain = summary.changeCents;
   const gainPct = summary.changeBps / 100;
 
+  // Mix = available + locked only. Yield is already inside available after accrual;
+  // adding roiToDateCents on top double-counts.
   const mixSegments = [
     {
       key: "Available cash",
@@ -54,13 +56,11 @@ export default async function DashboardPage() {
       amountCents: balance.lockedCents,
       color: "#8b5cf6",
     },
-    {
-      key: "Yield earned",
-      amountCents: summary.roiToDateCents,
-      color: "#ec4899",
-    },
   ].filter((s: any) => s.amountCents > 0);
-  const mixTotal = mixSegments.reduce((s: any, seg: any) => s + seg.amountCents, 0);
+  const mixTotal = mixSegments.reduce(
+    (s: number, seg: any) => s + Number(seg.amountCents || 0),
+    0,
+  );
 
   return (
     <div className="space-y-4 pb-8">

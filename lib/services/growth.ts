@@ -1,21 +1,38 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, gte, desc } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import {
   defaultPortfolioRates,
   userInvestments,
   portfolioValueSnapshots,
-  userBalances,
-  users,
+  investmentPlans,
   platformSettings,
 } from "@/lib/db/schema";
-import { getBalances } from "./ledger";
+import { asCents, sumCents, warnIfInsaneCents } from "@/lib/money";
+import { getBalances, postLedgerEntry } from "./ledger";
 import { assertAdmin, loadActor } from "./_authz";
 import { setSetting } from "./settings";
 
-/** Hours in a year for continuous hourly compounding approximation. */
+/** Hours in a year for simple hourly interest. */
 const HOURS_PER_YEAR = 365 * 24;
+
+/** Snapshot at most once per hour per user (stops page-load spam). */
+const SNAPSHOT_MIN_INTERVAL_MS = 60 * 60 * 1000;
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function randomInt(min: number, max: number) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function parseMultiplier(raw: unknown, fallback: number): number {
+  const n = raw != null ? Number(raw) : fallback;
+  if (!Number.isFinite(n) || n <= 0 || n > 1) return fallback;
+  return n;
+}
 
 /** Fetch dynamic Lock-up → share of Default Portfolio Growth APY. */
 export async function getLockupMultipliers(): Promise<Record<number, number>> {
@@ -33,14 +50,10 @@ export async function getLockupMultipliers(): Promise<Record<number, number>> {
     .from(platformSettings)
     .where(eq(platformSettings.key, "lockup_mult_365"))) as any[];
 
-  const m90 = m90Rows[0];
-  const m180 = m180Rows[0];
-  const m365 = m365Rows[0];
-
   return {
-    90: m90 ? Number(m90.value) : 0.33,
-    180: m180 ? Number(m180.value) : 0.66,
-    365: m365 ? Number(m365.value) : 1.0,
+    90: parseMultiplier(m90Rows[0]?.value, 0.33),
+    180: parseMultiplier(m180Rows[0]?.value, 0.66),
+    365: parseMultiplier(m365Rows[0]?.value, 1.0),
   };
 }
 
@@ -52,14 +65,6 @@ export async function lockupMultiplier(lockupDays: number): Promise<number> {
   if (lockupDays <= 90) return mults[90];
   if (lockupDays <= 180) return mults[180];
   return mults[365];
-}
-
-function nowIso() {
-  return new Date().toISOString();
-}
-
-function randomInt(min: number, max: number) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
 /**
@@ -79,7 +84,9 @@ export async function refreshDefaultPortfolioRates(force = false) {
       updated.push(row);
       continue;
     }
-    const next = randomInt(row.apyMinBps, row.apyMaxBps);
+    const minBps = asCents(row.apyMinBps);
+    const maxBps = asCents(row.apyMaxBps);
+    const next = randomInt(minBps, maxBps);
     const ts = nowIso();
     await db
       .update(defaultPortfolioRates)
@@ -107,22 +114,24 @@ export async function resolveDefaultApyBps(
   totalInvestedCents: number,
 ): Promise<number> {
   const rates = await listDefaultPortfolioRates();
-  if (totalInvestedCents < 50_000) return 0;
+  const total = asCents(totalInvestedCents);
+  if (total < 50_000) return 0;
 
-  // Prefer exact tier match by min/max
   const sorted = [...rates].sort(
-    (a, b) => b.minInvestedCents - a.minInvestedCents,
+    (a, b) => asCents(b.minInvestedCents) - asCents(a.minInvestedCents),
   );
   for (const t of sorted) {
-    if (totalInvestedCents < t.minInvestedCents) continue;
-    if (t.maxInvestedCents != null && totalInvestedCents >= t.maxInvestedCents) {
+    if (total < asCents(t.minInvestedCents)) continue;
+    if (
+      t.maxInvestedCents != null &&
+      total >= asCents(t.maxInvestedCents)
+    ) {
       continue;
     }
-    return t.currentApyBps;
+    return asCents(t.currentApyBps);
   }
-  // Fallback: highest tier if above all mins
   const top = sorted[0];
-  return top?.currentApyBps ?? 0;
+  return top ? asCents(top.currentApyBps) : 0;
 }
 
 export async function totalActiveInvestedCents(userId: string): Promise<number> {
@@ -136,13 +145,34 @@ export async function totalActiveInvestedCents(userId: string): Promise<number> 
         inArray(userInvestments.status, ["active", "maturing"]),
       ),
     )) as any[];
-  return inv.reduce((s: number, i: any) => s + i.principalCents, 0);
+  return inv.reduce(
+    (s: number, i: any) => sumCents(s, i.principalCents),
+    0,
+  );
+}
+
+async function planLockupDaysByPlanId(
+  planIds: string[],
+): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  if (planIds.length === 0) return map;
+  const db = getDb();
+  const unique = [...new Set(planIds)];
+  const plans = (await db
+    .select()
+    .from(investmentPlans)
+    .where(inArray(investmentPlans.id, unique))) as any[];
+  for (const p of plans) {
+    map.set(p.id, asCents(p.lockupDays) || 90);
+  }
+  return map;
 }
 
 /**
  * Accrue hourly growth on each active investment.
- * Only invested principal is eligible. Effective APY = default tier APY × lock-up multiplier.
- * Yield is added to available cash (realized growth) and tracked on roiToDateCents.
+ * Only invested principal is eligible.
+ * Effective APY = default tier APY × **plan** lock-up multiplier (not user profile).
+ * Yield is credited via ledger type "yield" (available cash) and tracked on roiToDateCents.
  */
 export async function accrueUserGrowth(userId: string) {
   await refreshDefaultPortfolioRates(false);
@@ -165,14 +195,26 @@ export async function accrueUserGrowth(userId: string) {
         yieldCents: number;
         effectiveApyBps: number;
       }[],
+      defaultApyBps: 0,
     };
   }
 
   const totalInvested = investments.reduce(
-    (s: number, i: any) => s + i.principalCents,
+    (s: number, i: any) => sumCents(s, i.principalCents),
     0,
   );
   const defaultApyBps = await resolveDefaultApyBps(totalInvested);
+  const planLockups = await planLockupDaysByPlanId(
+    investments.map((i: any) => i.planId as string),
+  );
+  const multCache = new Map<number, number>();
+  async function multFor(days: number) {
+    if (!multCache.has(days)) {
+      multCache.set(days, await lockupMultiplier(days));
+    }
+    return multCache.get(days)!;
+  }
+
   const now = Date.now();
   let totalYield = 0;
   const details: {
@@ -181,16 +223,22 @@ export async function accrueUserGrowth(userId: string) {
     effectiveApyBps: number;
   }[] = [];
 
-  const userRows = (await db
-    .select()
-    .from(users)
-    .where(eq(users.id, userId))) as any[];
-  const userRow = userRows[0];
-  const userLockupDays = userRow?.lockupDays ?? 90;
-  const mult = await lockupMultiplier(userLockupDays);
-  const effectiveApyBps = Math.round(defaultApyBps * mult);
-
   for (const inv of investments) {
+    const principal = asCents(inv.principalCents);
+    const roiToDate = asCents(inv.roiToDateCents);
+    warnIfInsaneCents("investment.principalCents", principal, {
+      userId,
+      investmentId: inv.id,
+    });
+    warnIfInsaneCents("investment.roiToDateCents", roiToDate, {
+      userId,
+      investmentId: inv.id,
+    });
+
+    const planDays = planLockups.get(inv.planId) ?? 90;
+    const mult = await multFor(planDays);
+    const effectiveApyBps = Math.round(defaultApyBps * mult);
+
     const last = inv.lastAccruedAt
       ? new Date(inv.lastAccruedAt).getTime()
       : new Date(inv.startedAt).getTime();
@@ -200,8 +248,7 @@ export async function accrueUserGrowth(userId: string) {
     // Accrue only whole hours to keep deterministic / avoid float spam
     const wholeHours = Math.floor(hours);
     if (wholeHours <= 0 || effectiveApyBps <= 0) {
-      // Still stamp effective APY for UI
-      if (inv.effectiveApyBps !== effectiveApyBps) {
+      if (asCents(inv.effectiveApyBps) !== effectiveApyBps) {
         await db
           .update(userInvestments)
           .set({ effectiveApyBps })
@@ -213,7 +260,7 @@ export async function accrueUserGrowth(userId: string) {
 
     const apy = effectiveApyBps / 10000;
     const yieldCents = Math.floor(
-      inv.principalCents * apy * (wholeHours / HOURS_PER_YEAR),
+      principal * apy * (wholeHours / HOURS_PER_YEAR),
     );
 
     const accruedAt = new Date(
@@ -223,46 +270,60 @@ export async function accrueUserGrowth(userId: string) {
     await db
       .update(userInvestments)
       .set({
-        roiToDateCents: inv.roiToDateCents + yieldCents,
+        roiToDateCents: sumCents(roiToDate, yieldCents),
         lastAccruedAt: accruedAt,
         effectiveApyBps,
       })
       .where(eq(userInvestments.id, inv.id));
 
     if (yieldCents > 0) {
-      // Credit yield to available balance (growth is withdrawable after credit)
-      const bal = await getBalances(userId);
-      await db
-        .update(userBalances)
-        .set({
-          availableCents: bal.availableCents + yieldCents,
-          updatedAt: nowIso(),
-        })
-        .where(eq(userBalances.userId, userId));
+      // Credit yield once via ledger (updates available balance)
+      await postLedgerEntry({
+        userId,
+        type: "yield",
+        amountCents: yieldCents,
+        refType: "investment",
+        refId: inv.id,
+        note: `Growth yield (${wholeHours}h @ ${(effectiveApyBps / 100).toFixed(2)}% APY)`,
+      });
       totalYield += yieldCents;
     }
 
     details.push({ id: inv.id, yieldCents, effectiveApyBps });
   }
 
-  // Snapshot portfolio value after accrual
-  const bal = await getBalances(userId);
-  const freshInv = (await db
+  await maybeSnapshotPortfolio(userId);
+
+  return { accruedCents: totalYield, investments: details, defaultApyBps };
+}
+
+/** Insert portfolio snapshot at most once per hour. */
+async function maybeSnapshotPortfolio(userId: string) {
+  const db = getDb();
+  const cutoff = new Date(Date.now() - SNAPSHOT_MIN_INTERVAL_MS).toISOString();
+  const recent = (await db
     .select()
-    .from(userInvestments)
-    .where(eq(userInvestments.userId, userId))) as any[];
-  const roi = freshInv.reduce((s: number, i: any) => s + i.roiToDateCents, 0);
-  // Portfolio = available + locked principal (roi already moved to available)
-  const valueCents = bal.availableCents + bal.lockedCents;
-  void roi;
+    .from(portfolioValueSnapshots)
+    .where(
+      and(
+        eq(portfolioValueSnapshots.userId, userId),
+        gte(portfolioValueSnapshots.asOf, cutoff),
+      ),
+    )
+    .orderBy(desc(portfolioValueSnapshots.asOf))) as any[];
+
+  if (recent.length > 0) return;
+
+  const bal = await getBalances(userId);
+  const valueCents = sumCents(bal.availableCents, bal.lockedCents);
+  warnIfInsaneCents("snapshot.valueCents", valueCents, { userId });
+
   await db.insert(portfolioValueSnapshots).values({
     id: randomUUID(),
     userId,
     asOf: nowIso(),
     valueCents,
   });
-
-  return { accruedCents: totalYield, investments: details, defaultApyBps };
 }
 
 /** Accrue growth for every user with active investments (hourly job). */
@@ -284,7 +345,10 @@ export async function accrueAllUsersGrowth() {
   );
   return {
     usersProcessed: unique.length,
-    totalYieldCents: results.reduce((s: number, r: any) => s + r.accruedCents, 0),
+    totalYieldCents: results.reduce(
+      (s: number, r: any) => sumCents(s, r.accruedCents),
+      0,
+    ),
     results,
   };
 }
@@ -300,10 +364,11 @@ export async function describeGrowthForUser(userId: string) {
     defaultApyPct: defaultApyBps / 100,
     tiers: rates.map((r: any) => ({
       tier: r.tier,
-      minUsd: r.minInvestedCents / 100,
-      maxUsd: r.maxInvestedCents != null ? r.maxInvestedCents / 100 : null,
-      currentApyPct: r.currentApyBps / 100,
-      band: `${r.apyMinBps / 100}–${r.apyMaxBps / 100}%`,
+      minUsd: asCents(r.minInvestedCents) / 100,
+      maxUsd:
+        r.maxInvestedCents != null ? asCents(r.maxInvestedCents) / 100 : null,
+      currentApyPct: asCents(r.currentApyBps) / 100,
+      band: `${asCents(r.apyMinBps) / 100}–${asCents(r.apyMaxBps) / 100}%`,
       updatedAt: r.updatedAt,
     })),
     lockupMultipliers: [

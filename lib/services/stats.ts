@@ -10,6 +10,7 @@ import {
   payouts,
   transactions,
 } from "@/lib/db/schema";
+import { asCents, sumCents } from "@/lib/money";
 
 export async function getPlatformStats() {
   const db = getDb();
@@ -21,10 +22,10 @@ export async function getPlatformStats() {
 
   if (latest) {
     return {
-      totalInvestedCents: Number(latest.totalInvestedCents),
-      avgRoiBps: latest.avgRoiBps,
-      propertiesFunded: latest.propertiesFunded,
-      activeUsers: latest.activeUsers,
+      totalInvestedCents: asCents(latest.totalInvestedCents),
+      avgRoiBps: asCents(latest.avgRoiBps),
+      propertiesFunded: Number(latest.propertiesFunded),
+      activeUsers: Number(latest.activeUsers),
       asOf: latest.asOf,
     };
   }
@@ -33,7 +34,10 @@ export async function getPlatformStats() {
   const allUsers = (await db.select().from(users)) as any[];
   const inv = (await db.select().from(userInvestments)) as any[];
   const props = (await db.select().from(properties)) as any[];
-  const totalInvestedCents = inv.reduce((s: any, i: any) => s + i.principalCents, 0);
+  const totalInvestedCents = inv.reduce(
+    (s: number, i: any) => sumCents(s, i.principalCents),
+    0,
+  );
   return {
     totalInvestedCents,
     avgRoiBps: 1250,
@@ -74,7 +78,7 @@ export async function getAdminOverview() {
     totalUsers: allUsers.length,
     totalAumCents: inv
       .filter((i: any) => i.status === "active" || i.status === "maturing")
-      .reduce((s: any, i: any) => s + i.principalCents, 0),
+      .reduce((s: number, i: any) => sumCents(s, i.principalCents), 0),
     pendingKyc: kyc.length,
     pendingWithdrawals: pendingPays.length + processingPays.length,
     pendingDeposits: pendingDeposits.length,

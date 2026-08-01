@@ -10,7 +10,7 @@ import {
   transactions,
 } from "@/lib/db/schema";
 import { AppError } from "@/lib/errors";
-import { formatUsd } from "@/lib/money";
+import { asCents, formatUsd, sumCents } from "@/lib/money";
 import {
   assertSelfOrAdmin,
   assertKycApproved,
@@ -54,17 +54,35 @@ export async function getPlan(
   return bySlug[0] as InvestmentPlan | undefined;
 }
 
-export async function listUserInvestments(actorId: string, userId: string) {
+/**
+ * List user investments. Accrues growth by default (investments page).
+ * Pass skipAccrue when the caller already accrued (e.g. portfolio summary).
+ */
+export async function listUserInvestments(
+  actorId: string,
+  userId: string,
+  opts?: { skipAccrue?: boolean },
+) {
   const actor = await loadActor(actorId);
   assertSelfOrAdmin(actor, userId);
-  // Accrue growth lazily when viewing investments
-  await accrueUserGrowth(userId);
+  if (!opts?.skipAccrue) {
+    await accrueUserGrowth(userId);
+  }
   const db = getDb();
-  return (await db
+  const rows = (await db
     .select()
     .from(userInvestments)
     .where(eq(userInvestments.userId, userId))
     .orderBy(desc(userInvestments.createdAt))) as any[];
+
+  // Normalize cents fields so UI arithmetic never string-concats
+  return rows.map((r: any) => ({
+    ...r,
+    principalCents: asCents(r.principalCents),
+    roiToDateCents: asCents(r.roiToDateCents),
+    effectiveApyBps:
+      r.effectiveApyBps == null ? r.effectiveApyBps : asCents(r.effectiveApyBps),
+  }));
 }
 
 export async function createInvestment(
@@ -79,7 +97,8 @@ export async function createInvestment(
   assertActive(actor);
   assertKycApproved(actor);
 
-  if (input.amountCents <= 0) {
+  const amountCents = asCents(input.amountCents);
+  if (amountCents <= 0) {
     throw new AppError("VALIDATION", "Amount must be positive");
   }
 
@@ -87,39 +106,43 @@ export async function createInvestment(
   if (!plan || plan.status !== "active") {
     throw new AppError("NOT_FOUND", "Plan not found", 404);
   }
-  if (input.amountCents < plan.minInvestmentCents) {
+  const minInvest = asCents(plan.minInvestmentCents);
+  if (amountCents < minInvest) {
     throw new AppError(
       "VALIDATION",
-      `Minimum investment is ${formatUsd(plan.minInvestmentCents)}`,
+      `Minimum investment is ${formatUsd(minInvest)}`,
     );
   }
 
   const bal = await getBalances(actor.id);
-  if (bal.availableCents < input.amountCents) {
+  if (bal.availableCents < amountCents) {
     throw new AppError("INSUFFICIENT_BALANCE", "Deposit more funds first");
   }
 
   const db = getDb();
   const id = randomUUID();
   const startedAt = new Date();
+  const lockupDays = asCents(plan.lockupDays) || 90;
   const maturesAt = new Date(
-    startedAt.getTime() + plan.lockupDays * 24 * 60 * 60 * 1000,
+    startedAt.getTime() + lockupDays * 24 * 60 * 60 * 1000,
   );
   const createdAt = startedAt.toISOString();
 
-  // Project effective APY after this subscription
-  const projectedTotal =
-    (await totalActiveInvestedCents(actor.id)) + input.amountCents;
+  // Project effective APY after this subscription (plan lock-up, not user profile)
+  const projectedTotal = sumCents(
+    await totalActiveInvestedCents(actor.id),
+    amountCents,
+  );
   const defaultApy = await resolveDefaultApyBps(projectedTotal);
   const effectiveApyBps = Math.round(
-    defaultApy * (await lockupMultiplier(plan.lockupDays)),
+    defaultApy * (await lockupMultiplier(lockupDays)),
   );
 
   await postLedgerEntry({
     userId: actor.id,
     type: "subscribe",
-    amountCents: -input.amountCents,
-    lockCents: input.amountCents,
+    amountCents: -amountCents,
+    lockCents: amountCents,
     refType: "investment",
     refId: id,
     note: `Subscribe ${plan.name}`,
@@ -130,7 +153,7 @@ export async function createInvestment(
     userId: actor.id,
     planId: plan.id,
     propertyId: input.propertyId,
-    principalCents: input.amountCents,
+    principalCents: amountCents,
     status: "active",
     startedAt: createdAt,
     maturesAt: maturesAt.toISOString(),
@@ -144,7 +167,7 @@ export async function createInvestment(
     id: randomUUID(),
     userId: actor.id,
     type: "invest",
-    amountCents: input.amountCents,
+    amountCents,
     asset: "USD",
     status: "confirmed",
     txRef: id,
@@ -156,14 +179,14 @@ export async function createInvestment(
     action: "investment.subscribe",
     resourceType: "investment",
     resourceId: id,
-    meta: { planId: plan.id, amountCents: input.amountCents, effectiveApyBps },
+    meta: { planId: plan.id, amountCents, effectiveApyBps },
   });
 
   await notifyInvestmentCreated(
     actor.id,
-    input.amountCents,
+    amountCents,
     plan.name,
-    plan.lockupDays,
+    lockupDays,
   );
 
   const createdRows = await db
@@ -177,21 +200,28 @@ export async function getPortfolioSummary(actorId: string, userId: string) {
   const actor = await loadActor(actorId);
   assertSelfOrAdmin(actor, userId);
 
-  // Live growth accrual before summarizing
+  // Accrue once per request — listUserInvestments skips a second pass
   const growth = await accrueUserGrowth(userId);
   const growthInfo = await describeGrowthForUser(userId);
 
   const bal = await getBalances(userId);
-  const investments = await listUserInvestments(actorId, userId);
+  const investments = await listUserInvestments(actorId, userId, {
+    skipAccrue: true,
+  });
   const activePrincipal = investments
     .filter((i: any) => i.status === "active" || i.status === "maturing")
-    .reduce((s: any, i: any) => s + i.principalCents, 0);
-  const roi = investments.reduce((s: any, i: any) => s + i.roiToDateCents, 0);
+    .reduce((s: number, i: any) => sumCents(s, i.principalCents), 0);
+  const roi = investments.reduce(
+    (s: number, i: any) => sumCents(s, i.roiToDateCents),
+    0,
+  );
   // Available already includes credited yield; locked is principal
-  const totalValueCents = bal.availableCents + bal.lockedCents;
+  const totalValueCents = sumCents(bal.availableCents, bal.lockedCents);
   const series7D = await getPerformanceSeries(actorId, userId, "7D");
-  const first = series7D[0]?.valueCents ?? totalValueCents;
-  const last = series7D[series7D.length - 1]?.valueCents ?? totalValueCents;
+  const first = asCents(series7D[0]?.valueCents ?? totalValueCents);
+  const last = asCents(
+    series7D[series7D.length - 1]?.valueCents ?? totalValueCents,
+  );
   const changeCents = last - first;
   const changeBps =
     first > 0 ? Math.round((changeCents / first) * 10000) : 0;
@@ -247,7 +277,7 @@ export async function getPerformanceSeries(
   const filtered = all.filter((s: any) => new Date(s.asOf).getTime() >= cut);
   return filtered.map((s: any) => ({
     asOf: s.asOf,
-    valueCents: s.valueCents,
+    valueCents: asCents(s.valueCents),
   }));
 }
 
@@ -256,6 +286,6 @@ export function projectRoi(
   years: number,
   apyBps: number,
 ): number {
-  const apy = apyBps / 10000;
-  return Math.round(amountCents * Math.pow(1 + apy, years));
+  const apy = asCents(apyBps) / 10000;
+  return Math.round(asCents(amountCents) * Math.pow(1 + apy, years));
 }

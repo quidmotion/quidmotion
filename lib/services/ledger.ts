@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { ledgerEntries, userBalances } from "@/lib/db/schema";
 import { AppError } from "@/lib/errors";
-import type { Cents } from "@/lib/money";
+import { asCents, sumCents, warnIfInsaneCents, type Cents } from "@/lib/money";
 
 export type LedgerType =
   | "deposit"
@@ -16,8 +16,33 @@ export type LedgerType =
   | "adjustment"
   | "yield";
 
+export type UserBalance = {
+  userId?: string;
+  availableCents: Cents;
+  lockedCents: Cents;
+  updatedAt: string;
+};
+
 function nowIso() {
   return new Date().toISOString();
+}
+
+function normalizeBalance(row: {
+  userId?: string;
+  availableCents?: unknown;
+  lockedCents?: unknown;
+  updatedAt?: string;
+} | null | undefined): UserBalance {
+  const availableCents = asCents(row?.availableCents);
+  const lockedCents = asCents(row?.lockedCents);
+  warnIfInsaneCents("availableCents", availableCents, { userId: row?.userId });
+  warnIfInsaneCents("lockedCents", lockedCents, { userId: row?.userId });
+  return {
+    userId: row?.userId,
+    availableCents,
+    lockedCents,
+    updatedAt: row?.updatedAt ?? nowIso(),
+  };
 }
 
 export async function ensureBalanceRow(userId: string) {
@@ -27,24 +52,23 @@ export async function ensureBalanceRow(userId: string) {
     .from(userBalances)
     .where(eq(userBalances.userId, userId))) as any[];
   if (!rows[0]) {
-    await db.insert(userBalances)
-      .values({
-        userId,
-        availableCents: 0,
-        lockedCents: 0,
-        updatedAt: nowIso(),
-      });
+    await db.insert(userBalances).values({
+      userId,
+      availableCents: 0,
+      lockedCents: 0,
+      updatedAt: nowIso(),
+    });
   }
 }
 
-export async function getBalances(userId: string) {
+export async function getBalances(userId: string): Promise<UserBalance> {
   await ensureBalanceRow(userId);
   const db = getDb();
   const rows = (await db
     .select()
     .from(userBalances)
     .where(eq(userBalances.userId, userId))) as any[];
-  return rows[0] || { availableCents: 0, lockedCents: 0, updatedAt: nowIso() };
+  return normalizeBalance(rows[0] ?? { availableCents: 0, lockedCents: 0 });
 }
 
 /**
@@ -65,9 +89,10 @@ export async function postLedgerEntry(input: {
   const db = getDb();
   await ensureBalanceRow(input.userId);
   const bal = await getBalances(input.userId);
-  const nextAvailable = bal.availableCents + input.amountCents;
-  const lockDelta = input.lockCents ?? 0;
-  const nextLocked = bal.lockedCents + lockDelta;
+  const amountCents = asCents(input.amountCents);
+  const lockDelta = asCents(input.lockCents ?? 0);
+  const nextAvailable = sumCents(bal.availableCents, amountCents);
+  const nextLocked = sumCents(bal.lockedCents, lockDelta);
 
   if (nextAvailable < 0) {
     throw new AppError("INSUFFICIENT_BALANCE", "Insufficient available balance");
@@ -76,22 +101,31 @@ export async function postLedgerEntry(input: {
     throw new AppError("INSUFFICIENT_BALANCE", "Invalid lock adjustment");
   }
 
+  warnIfInsaneCents("postLedger.nextAvailable", nextAvailable, {
+    userId: input.userId,
+    type: input.type,
+  });
+  warnIfInsaneCents("postLedger.nextLocked", nextLocked, {
+    userId: input.userId,
+    type: input.type,
+  });
+
   const id = randomUUID();
   const createdAt = nowIso();
-  await db.insert(ledgerEntries)
-    .values({
-      id,
-      userId: input.userId,
-      type: input.type,
-      amountCents: input.amountCents,
-      asset: input.asset ?? "USD",
-      refType: input.refType,
-      refId: input.refId,
-      note: input.note,
-      createdAt,
-    });
+  await db.insert(ledgerEntries).values({
+    id,
+    userId: input.userId,
+    type: input.type,
+    amountCents,
+    asset: input.asset ?? "USD",
+    refType: input.refType,
+    refId: input.refId,
+    note: input.note,
+    createdAt,
+  });
 
-  await db.update(userBalances)
+  await db
+    .update(userBalances)
     .set({
       availableCents: nextAvailable,
       lockedCents: nextLocked,
@@ -99,5 +133,9 @@ export async function postLedgerEntry(input: {
     })
     .where(eq(userBalances.userId, input.userId));
 
-  return { id, availableCents: nextAvailable as Cents, lockedCents: nextLocked as Cents };
+  return {
+    id,
+    availableCents: nextAvailable,
+    lockedCents: nextLocked,
+  };
 }

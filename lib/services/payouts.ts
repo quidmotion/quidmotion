@@ -11,6 +11,7 @@ import {
   assertSelfOrAdmin,
   loadActor,
 } from "./_authz";
+import { asCents } from "@/lib/money";
 import { postLedgerEntry, getBalances } from "./ledger";
 import {
   notifyWithdrawalRequested,
@@ -72,7 +73,7 @@ export async function requestWithdrawal(
   assertActive(actor);
   assertKycApproved(actor);
 
-  const amountCents = input.amountCents;
+  const amountCents = asCents(input.amountCents);
   if (amountCents <= 0) throw new AppError("VALIDATION", "Invalid amount");
   if (amountCents < 1000) {
     throw new AppError("VALIDATION", "Minimum withdrawal is $10.00");
@@ -278,7 +279,7 @@ export async function rejectPayout(
   await postLedgerEntry({
     userId: row.userId,
     type: "refund",
-    amountCents: row.amountCents,
+    amountCents: asCents(row.amountCents),
     refType: "payout",
     refId: row.id,
     note: note ?? "Withdrawal rejected — funds restored",

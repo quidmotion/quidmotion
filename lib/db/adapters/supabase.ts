@@ -89,11 +89,33 @@ export function createSupabaseAdapter(): DbAdapter {
       500,
     );
   }
+  // postgres.js returns BIGINT as strings by default. Money columns are BIGINT
+  // on Supabase; without parse-as-number, JS `+` concatenates and corrupts balances.
+  const int8AsNumber = {
+    to: 20,
+    from: [20],
+    parse: (x: string) => {
+      const n = Number(x);
+      return Number.isSafeInteger(n) ? n : x;
+    },
+    serialize: (x: number | string | bigint) => String(x),
+  };
+  const pgOpts = {
+    ...SERVERLESS_PG,
+    types: {
+      int8: int8AsNumber,
+      bigint: int8AsNumber,
+    },
+  };
+
   const options = parsePgOptions(url);
   const client =
     typeof options === "string"
-      ? postgres(options, SERVERLESS_PG)
-      : postgres(options);
+      ? postgres(options, pgOpts)
+      : postgres({
+          ...(options as Record<string, unknown>),
+          ...pgOpts,
+        } as never);
   const db = drizzle(client, { schema });
 
   return {

@@ -4,6 +4,7 @@ import { getDb } from "@/lib/db";
 import { referralRewards, users } from "@/lib/db/schema";
 import { features } from "@/lib/config/features";
 import { AppError } from "@/lib/errors";
+import { asCents, sumCents } from "@/lib/money";
 import { assertSelfOrAdmin, loadActor } from "./_authz";
 
 export async function getRewards(actorId: string, userId: string) {
@@ -24,11 +25,14 @@ export async function getRewards(actorId: string, userId: string) {
     .from(users)
     .where(eq(users.id, userId))) as any[];
   const user = userRows[0];
-  const totalCents = rewards.reduce((s: any, r: any) => s + r.amountCents, 0);
+  const totalCents = rewards.reduce(
+    (s: number, r: any) => sumCents(s, r.amountCents),
+    0,
+  );
   const pendingCents = rewards
     .filter((r: any) => r.status === "pending")
-    .reduce((s: any, r: any) => s + r.amountCents, 0);
-  const paidCents = totalCents - pendingCents;
+    .reduce((s: number, r: any) => sumCents(s, r.amountCents), 0);
+  const paidCents = asCents(totalCents - pendingCents);
 
   return {
     referralCode: user?.referralCode ?? "",

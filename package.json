@@ -8,6 +8,8 @@
     "start": "node --experimental-sqlite ./node_modules/next/dist/bin/next start",
     "lint": "next lint",
     "db:seed": "node --experimental-sqlite --import tsx scripts/seed.ts",
+    "db:repair-portfolio": "node --experimental-sqlite --import tsx scripts/repair-portfolio-balances.ts",
+    "test:money": "node --import tsx scripts/test-money.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

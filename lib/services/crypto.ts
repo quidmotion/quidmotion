@@ -11,6 +11,7 @@ import {
   assertSelfOrAdmin,
   loadActor,
 } from "./_authz";
+import { asCents } from "@/lib/money";
 import { postLedgerEntry } from "./ledger";
 import { getDepositWallets, DEPOSIT_ASSETS } from "./settings";
 import {
@@ -409,10 +410,11 @@ export async function adminConfirmDeposit(
     );
   }
 
+  const amountCents = asCents(row.amountCents);
   await postLedgerEntry({
     userId: row.userId,
     type: "deposit",
-    amountCents: row.amountCents,
+    amountCents,
     asset: row.asset,
     refType: "transaction",
     refId: row.id,
@@ -446,7 +448,7 @@ export async function adminConfirmDeposit(
     resourceId: transactionId,
     meta: {
       userId: row.userId,
-      amountCents: row.amountCents,
+      amountCents,
       asset: row.asset,
     },
   });
@@ -458,7 +460,7 @@ export async function adminConfirmDeposit(
     kind: "deposit",
   });
 
-  await notifyDepositConfirmed(row.userId, row.amountCents, row.asset);
+  await notifyDepositConfirmed(row.userId, amountCents, row.asset);
 
   const updated = (await db
     .select()

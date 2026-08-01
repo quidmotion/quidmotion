@@ -8,6 +8,11 @@ import { formatUsd } from "@/lib/money";
 import { getPlatformStats } from "@/lib/services/stats";
 import { listPlans } from "@/lib/services/investments";
 import { listFaq } from "@/lib/services/faq";
+import type { investmentPlans, faqEntries } from "@/lib/db/schema";
+import type { InferSelectModel } from "drizzle-orm";
+
+type Plan = InferSelectModel<typeof investmentPlans>;
+type FaqEntry = InferSelectModel<typeof faqEntries>;
 
 export default function HomePage() {
   const stats = getPlatformStats();
@@ -140,7 +145,7 @@ export default function HomePage() {
           </Link>
         </div>
         <div className="grid gap-4 md:grid-cols-3">
-          {plans.map((plan: any) => (
+          {plans.map((plan: Plan) => (
             <Card key={plan.id} className="flex flex-col">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold">{plan.name}</h3>
@@ -218,7 +223,7 @@ export default function HomePage() {
       <section className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
         <h2 className="text-center text-3xl font-semibold">FAQ</h2>
         <div className="mt-8 space-y-3">
-          {faqs.map((f: any) => (
+          {faqs.map((f: FaqEntry) => (
             <Island key={f.id}>
               <IslandBody className="pt-4">
                 <h3 className="font-medium">{f.question}</h3>

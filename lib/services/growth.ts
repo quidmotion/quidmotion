@@ -111,9 +111,9 @@ export function resolveDefaultApyBps(totalInvestedCents: number): number {
   return top?.currentApyBps ?? 0;
 }
 
-export function totalActiveInvestedCents(userId: string): number {
+export async function totalActiveInvestedCents(userId: string): Promise<number> {
   const db = getDb();
-  const inv = db
+  const inv = (await db
     .select()
     .from(userInvestments)
     .where(
@@ -121,8 +121,7 @@ export function totalActiveInvestedCents(userId: string): number {
         eq(userInvestments.userId, userId),
         inArray(userInvestments.status, ["active", "maturing"]),
       ),
-    )
-    .all();
+    )) as any[];
   return inv.reduce((s: number, i: any) => s + i.principalCents, 0);
 }
 
@@ -131,10 +130,10 @@ export function totalActiveInvestedCents(userId: string): number {
  * Only invested principal is eligible. Effective APY = default tier APY × lock-up multiplier.
  * Yield is added to available cash (realized growth) and tracked on roiToDateCents.
  */
-export function accrueUserGrowth(userId: string) {
+export async function accrueUserGrowth(userId: string) {
   refreshDefaultPortfolioRates(false);
   const db = getDb();
-  const investments = db
+  const investments = (await db
     .select()
     .from(userInvestments)
     .where(
@@ -142,8 +141,7 @@ export function accrueUserGrowth(userId: string) {
         eq(userInvestments.userId, userId),
         inArray(userInvestments.status, ["active", "maturing"]),
       ),
-    )
-    .all();
+    )) as any[];
 
   if (investments.length === 0) {
     return { accruedCents: 0, investments: [] as { id: string; yieldCents: number; effectiveApyBps: number }[] };
@@ -155,7 +153,8 @@ export function accrueUserGrowth(userId: string) {
   let totalYield = 0;
   const details: { id: string; yieldCents: number; effectiveApyBps: number }[] = [];
 
-  const userRow = db.select().from(users).where(eq(users.id, userId)).get();
+  const userRows = (await db.select().from(users).where(eq(users.id, userId))) as any[];
+  const userRow = userRows[0];
   const userLockupDays = userRow?.lockupDays ?? 90;
   const mult = lockupMultiplier(userLockupDays);
   const effectiveApyBps = Math.round(defaultApyBps * mult);
@@ -173,10 +172,9 @@ export function accrueUserGrowth(userId: string) {
     if (wholeHours <= 0 || effectiveApyBps <= 0) {
       // Still stamp effective APY for UI
       if (inv.effectiveApyBps !== effectiveApyBps) {
-        db.update(userInvestments)
+        await db.update(userInvestments)
           .set({ effectiveApyBps })
-          .where(eq(userInvestments.id, inv.id))
-          .run();
+          .where(eq(userInvestments.id, inv.id));
       }
       details.push({ id: inv.id, yieldCents: 0, effectiveApyBps });
       continue;
@@ -189,25 +187,23 @@ export function accrueUserGrowth(userId: string) {
 
     const accruedAt = new Date(last + wholeHours * 60 * 60 * 1000).toISOString();
 
-    db.update(userInvestments)
+    await db.update(userInvestments)
       .set({
         roiToDateCents: inv.roiToDateCents + yieldCents,
         lastAccruedAt: accruedAt,
         effectiveApyBps,
       })
-      .where(eq(userInvestments.id, inv.id))
-      .run();
+      .where(eq(userInvestments.id, inv.id));
 
     if (yieldCents > 0) {
       // Credit yield to available balance (growth is withdrawable after credit)
-      const bal = getBalances(userId);
-      db.update(userBalances)
+      const bal = await getBalances(userId);
+      await db.update(userBalances)
         .set({
           availableCents: bal.availableCents + yieldCents,
           updatedAt: nowIso(),
         })
-        .where(eq(userBalances.userId, userId))
-        .run();
+        .where(eq(userBalances.userId, userId));
       totalYield += yieldCents;
     }
 
@@ -215,42 +211,39 @@ export function accrueUserGrowth(userId: string) {
   }
 
   // Snapshot portfolio value after accrual
-  const bal = getBalances(userId);
-  const freshInv = db
+  const bal = await getBalances(userId);
+  const freshInv = (await db
     .select()
     .from(userInvestments)
-    .where(eq(userInvestments.userId, userId))
-    .all();
+    .where(eq(userInvestments.userId, userId))) as any[];
   const roi = freshInv.reduce((s: number, i: any) => s + i.roiToDateCents, 0);
   // Portfolio = available + locked principal (roi already moved to available)
   const valueCents = bal.availableCents + bal.lockedCents;
   void roi;
-  db.insert(portfolioValueSnapshots)
+  await db.insert(portfolioValueSnapshots)
     .values({
       id: randomUUID(),
       userId,
       asOf: nowIso(),
       valueCents,
-    })
-    .run();
+    });
 
   return { accruedCents: totalYield, investments: details, defaultApyBps };
 }
 
 /** Accrue growth for every user with active investments (hourly job). */
-export function accrueAllUsersGrowth() {
+export async function accrueAllUsersGrowth() {
   refreshDefaultPortfolioRates(true);
   const db = getDb();
-  const all = db
+  const all = (await db
     .select({ userId: userInvestments.userId })
     .from(userInvestments)
-    .where(inArray(userInvestments.status, ["active", "maturing"]))
-    .all();
+    .where(inArray(userInvestments.status, ["active", "maturing"]))) as any[];
   const unique = [...new Set(all.map((r: any) => r.userId as string))];
-  const results = (unique as string[]).map((userId: string) => ({
+  const results = await Promise.all((unique as string[]).map(async (userId: string) => ({
     userId,
-    ...accrueUserGrowth(userId),
-  }));
+    ...(await accrueUserGrowth(userId)),
+  })));
   return {
     usersProcessed: unique.length,
     totalYieldCents: results.reduce((s: number, r: any) => s + r.accruedCents, 0),
@@ -258,8 +251,8 @@ export function accrueAllUsersGrowth() {
   };
 }
 
-export function describeGrowthForUser(userId: string) {
-  const totalInvested = totalActiveInvestedCents(userId);
+export async function describeGrowthForUser(userId: string) {
+  const totalInvested = await totalActiveInvestedCents(userId);
   const defaultApyBps = resolveDefaultApyBps(totalInvested);
   const rates = listDefaultPortfolioRates();
   const mults = getLockupMultipliers();

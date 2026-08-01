@@ -22,11 +22,11 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-export function listUpcoming(actorId: string, userId: string) {
+export async function listUpcoming(actorId: string, userId: string) {
   const actor = loadActor(actorId);
   assertSelfOrAdmin(actor, userId);
   const db = getDb();
-  return db
+  return (await db
     .select()
     .from(payouts)
     .where(
@@ -39,20 +39,18 @@ export function listUpcoming(actorId: string, userId: string) {
         ]),
       ),
     )
-    .orderBy(desc(payouts.createdAt))
-    .all();
+    .orderBy(desc(payouts.createdAt))) as any[];
 }
 
-export function listUserPayouts(actorId: string, userId: string) {
+export async function listUserPayouts(actorId: string, userId: string) {
   const actor = loadActor(actorId);
   assertSelfOrAdmin(actor, userId);
   const db = getDb();
-  return db
+  return (await db
     .select()
     .from(payouts)
     .where(eq(payouts.userId, userId))
-    .orderBy(desc(payouts.createdAt))
-    .all();
+    .orderBy(desc(payouts.createdAt))) as any[];
 }
 
 export type WithdrawalRequestInput = {
@@ -88,7 +86,7 @@ export async function requestWithdrawal(
     );
   }
 
-  const bal = getBalances(actor.id);
+  const bal = await getBalances(actor.id);
   if (bal.availableCents < amountCents) {
     throw new AppError("INSUFFICIENT_BALANCE", "Insufficient available balance");
   }

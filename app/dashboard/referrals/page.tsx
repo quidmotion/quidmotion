@@ -20,7 +20,7 @@ export default async function ReferralsPage() {
     );
   }
 
-  const rewards = getRewards(session.user.id, session.user.id);
+  const rewards = await getRewards(session.user.id, session.user.id);
 
   return (
     <div className="mx-auto max-w-2xl space-y-4 pb-8">

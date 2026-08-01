@@ -13,7 +13,7 @@ import {
 
 export default async function AdminPropertiesPage() {
   const session = await getAuth().getSession();
-  const props = listAllAdmin(session!.user.id);
+  const props = await listAllAdmin(session!.user.id);
 
   return (
     <div className="space-y-6">

@@ -23,7 +23,7 @@ export async function POST(req: Request) {
 
   try {
     const rates = refreshDefaultPortfolioRates(true);
-    const growth = accrueAllUsersGrowth();
+    const growth = await accrueAllUsersGrowth();
     const prices = await fetchLivePrices();
     return NextResponse.json({
       ok: true,

@@ -10,7 +10,7 @@ import { InvestmentDisclaimer } from "@/components/shared/InvestmentDisclaimer";
 export default async function PropertiesPage() {
   const session = await getAuth().getSession();
   if (!session) redirect("/login");
-  const properties = listFeatured(20);
+  const properties = await listFeatured(20);
 
   return (
     <div className="space-y-4 pb-8">

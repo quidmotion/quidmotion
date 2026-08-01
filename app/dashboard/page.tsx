@@ -23,17 +23,17 @@ export default async function DashboardPage() {
   const { user } = session;
   const uid = user.id;
 
-  const summary = getPortfolioSummary(uid, uid);
-  const balance = getBalances(uid);
-  const upcoming = listUpcoming(uid, uid);
-  const properties = listFeatured(6);
-  const notes = listNotifications(uid, uid, 3);
+  const summary = await getPortfolioSummary(uid, uid);
+  const balance = await getBalances(uid);
+  const upcoming = await listUpcoming(uid, uid);
+  const properties = await listFeatured(6);
+  const notes = await listNotifications(uid, uid, 3);
   const plans = (await listPlans()).slice(0, 2);
 
   let rewards = null;
   if (features.referrals) {
     try {
-      rewards = getRewards(uid, uid);
+      rewards = await getRewards(uid, uid);
     } catch {
       rewards = null;
     }

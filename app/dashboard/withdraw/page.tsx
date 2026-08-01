@@ -25,9 +25,9 @@ function statusLabel(status: string) {
 export default async function WithdrawPage() {
   const session = await getAuth().getSession();
   if (!session) redirect("/login");
-  const balance = getBalances(session.user.id);
+  const balance = await getBalances(session.user.id);
   const kycApproved = session.user.kycStatus === "approved";
-  const history = listUserPayouts(session.user.id, session.user.id).filter(
+  const history = (await listUserPayouts(session.user.id, session.user.id)).filter(
     (p: any) => p.payoutType === "withdrawal",
   );
 

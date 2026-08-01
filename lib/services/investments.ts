@@ -53,18 +53,17 @@ export async function getPlan(planIdOrSlug: string): Promise<InvestmentPlan | un
   return bySlug[0] as InvestmentPlan | undefined;
 }
 
-export function listUserInvestments(actorId: string, userId: string) {
+export async function listUserInvestments(actorId: string, userId: string) {
   const actor = loadActor(actorId);
   assertSelfOrAdmin(actor, userId);
   // Accrue growth lazily when viewing investments
-  accrueUserGrowth(userId);
+  await accrueUserGrowth(userId);
   const db = getDb();
-  return db
+  return (await db
     .select()
     .from(userInvestments)
     .where(eq(userInvestments.userId, userId))
-    .orderBy(desc(userInvestments.createdAt))
-    .all();
+    .orderBy(desc(userInvestments.createdAt))) as any[];
 }
 
 export async function createInvestment(actorId: string, input: {
@@ -91,7 +90,7 @@ export async function createInvestment(actorId: string, input: {
     );
   }
 
-  const bal = getBalances(actor.id);
+  const bal = await getBalances(actor.id);
   if (bal.availableCents < input.amountCents) {
     throw new AppError("INSUFFICIENT_BALANCE", "Deposit more funds first");
   }
@@ -106,13 +105,13 @@ export async function createInvestment(actorId: string, input: {
 
   // Project effective APY after this subscription
   const projectedTotal =
-    totalActiveInvestedCents(actor.id) + input.amountCents;
+    (await totalActiveInvestedCents(actor.id)) + input.amountCents;
   const defaultApy = resolveDefaultApyBps(projectedTotal);
   const effectiveApyBps = Math.round(
     defaultApy * lockupMultiplier(plan.lockupDays),
   );
 
-  postLedgerEntry({
+  await postLedgerEntry({
     userId: actor.id,
     type: "subscribe",
     amountCents: -input.amountCents,
@@ -122,7 +121,7 @@ export async function createInvestment(actorId: string, input: {
     note: `Subscribe ${plan.name}`,
   });
 
-  db.insert(userInvestments)
+  await db.insert(userInvestments)
     .values({
       id,
       userId: actor.id,
@@ -136,10 +135,9 @@ export async function createInvestment(actorId: string, input: {
       lastAccruedAt: createdAt,
       effectiveApyBps,
       createdAt,
-    })
-    .run();
+    });
 
-  db.insert(transactions)
+  await db.insert(transactions)
     .values({
       id: randomUUID(),
       userId: actor.id,
@@ -149,8 +147,7 @@ export async function createInvestment(actorId: string, input: {
       status: "confirmed",
       txRef: id,
       createdAt,
-    })
-    .run();
+    });
 
   logEvent({
     actorId: actor.id,
@@ -171,28 +168,30 @@ export async function createInvestment(actorId: string, input: {
   return createdRows[0]!;
 }
 
-export function getPortfolioSummary(actorId: string, userId: string) {
+export async function getPortfolioSummary(actorId: string, userId: string) {
   const actor = loadActor(actorId);
   assertSelfOrAdmin(actor, userId);
 
   // Live growth accrual before summarizing
-  const growth = accrueUserGrowth(userId);
-  const growthInfo = describeGrowthForUser(userId);
+  const growth = await accrueUserGrowth(userId);
+  const growthInfo = await describeGrowthForUser(userId);
 
-  const bal = getBalances(userId);
-  const investments = listUserInvestments(actorId, userId);
+  const bal = await getBalances(userId);
+  const investments = await listUserInvestments(actorId, userId);
   const activePrincipal = investments
     .filter((i: any) => i.status === "active" || i.status === "maturing")
     .reduce((s: any, i: any) => s + i.principalCents, 0);
   const roi = investments.reduce((s: any, i: any) => s + i.roiToDateCents, 0);
   // Available already includes credited yield; locked is principal
   const totalValueCents = bal.availableCents + bal.lockedCents;
-  const series = getPerformanceSeries(actorId, userId, "7D");
-  const first = series[0]?.valueCents ?? totalValueCents;
-  const last = series[series.length - 1]?.valueCents ?? totalValueCents;
+  const series7D = await getPerformanceSeries(actorId, userId, "7D");
+  const first = series7D[0]?.valueCents ?? totalValueCents;
+  const last = series7D[series7D.length - 1]?.valueCents ?? totalValueCents;
   const changeCents = last - first;
   const changeBps =
     first > 0 ? Math.round((changeCents / first) * 10000) : 0;
+
+  const series1Y = await getPerformanceSeries(actorId, userId, "1Y");
 
   return {
     totalCents: totalValueCents,
@@ -203,7 +202,7 @@ export function getPortfolioSummary(actorId: string, userId: string) {
     roiToDateCents: roi,
     investmentCount: investments.length,
     investments,
-    series: getPerformanceSeries(actorId, userId, "1Y"),
+    series: series1Y,
     changeCents,
     changeBps,
     growth: {
@@ -216,7 +215,7 @@ export function getPortfolioSummary(actorId: string, userId: string) {
   };
 }
 
-export function getPerformanceSeries(
+export async function getPerformanceSeries(
   actorId: string,
   userId: string,
   range: TimeRange = "1Y",
@@ -224,12 +223,11 @@ export function getPerformanceSeries(
   const actor = loadActor(actorId);
   assertSelfOrAdmin(actor, userId);
   const db = getDb();
-  const all = db
+  const all = (await db
     .select()
     .from(portfolioValueSnapshots)
     .where(eq(portfolioValueSnapshots.userId, userId))
-    .orderBy(portfolioValueSnapshots.asOf)
-    .all();
+    .orderBy(portfolioValueSnapshots.asOf)) as any[];
 
   const now = Date.now();
   const cutoffs: Record<TimeRange, number> = {

@@ -20,33 +20,31 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-export function ensureBalanceRow(userId: string) {
+export async function ensureBalanceRow(userId: string) {
   const db = getDb();
-  const existing = db
+  const rows = (await db
     .select()
     .from(userBalances)
-    .where(eq(userBalances.userId, userId))
-    .get();
-  if (!existing) {
-    db.insert(userBalances)
+    .where(eq(userBalances.userId, userId))) as any[];
+  if (!rows[0]) {
+    await db.insert(userBalances)
       .values({
         userId,
         availableCents: 0,
         lockedCents: 0,
         updatedAt: nowIso(),
-      })
-      .run();
+      });
   }
 }
 
-export function getBalances(userId: string) {
-  ensureBalanceRow(userId);
+export async function getBalances(userId: string) {
+  await ensureBalanceRow(userId);
   const db = getDb();
-  return db
+  const rows = (await db
     .select()
     .from(userBalances)
-    .where(eq(userBalances.userId, userId))
-    .get()!;
+    .where(eq(userBalances.userId, userId))) as any[];
+  return rows[0] || { availableCents: 0, lockedCents: 0, updatedAt: nowIso() };
 }
 
 /**
@@ -54,7 +52,7 @@ export function getBalances(userId: string) {
  * amountCents: positive = credit available; negative = debit available.
  * For subscribe: debit available and optionally increase locked.
  */
-export function postLedgerEntry(input: {
+export async function postLedgerEntry(input: {
   userId: string;
   type: LedgerType;
   amountCents: number;
@@ -65,8 +63,8 @@ export function postLedgerEntry(input: {
   lockCents?: number;
 }) {
   const db = getDb();
-  ensureBalanceRow(input.userId);
-  const bal = getBalances(input.userId);
+  await ensureBalanceRow(input.userId);
+  const bal = await getBalances(input.userId);
   const nextAvailable = bal.availableCents + input.amountCents;
   const lockDelta = input.lockCents ?? 0;
   const nextLocked = bal.lockedCents + lockDelta;
@@ -80,7 +78,7 @@ export function postLedgerEntry(input: {
 
   const id = randomUUID();
   const createdAt = nowIso();
-  db.insert(ledgerEntries)
+  await db.insert(ledgerEntries)
     .values({
       id,
       userId: input.userId,
@@ -91,17 +89,15 @@ export function postLedgerEntry(input: {
       refId: input.refId,
       note: input.note,
       createdAt,
-    })
-    .run();
+    });
 
-  db.update(userBalances)
+  await db.update(userBalances)
     .set({
       availableCents: nextAvailable,
       lockedCents: nextLocked,
       updatedAt: createdAt,
     })
-    .where(eq(userBalances.userId, input.userId))
-    .run();
+    .where(eq(userBalances.userId, input.userId));
 
   return { id, availableCents: nextAvailable as Cents, lockedCents: nextLocked as Cents };
 }

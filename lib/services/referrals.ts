@@ -6,21 +6,21 @@ import { features } from "@/lib/config/features";
 import { AppError } from "@/lib/errors";
 import { assertSelfOrAdmin, loadActor } from "./_authz";
 
-export function getRewards(actorId: string, userId: string) {
+export async function getRewards(actorId: string, userId: string) {
   if (!features.referrals) {
     throw new AppError("FORBIDDEN", "Referrals disabled", 403);
   }
   const actor = loadActor(actorId);
   assertSelfOrAdmin(actor, userId);
   const db = getDb();
-  const rewards = db
+  const rewards = (await db
     .select()
     .from(referralRewards)
     .where(eq(referralRewards.userId, userId))
-    .orderBy(desc(referralRewards.createdAt))
-    .all();
+    .orderBy(desc(referralRewards.createdAt))) as any[];
 
-  const user = db.select().from(users).where(eq(users.id, userId)).get();
+  const userRows = (await db.select().from(users).where(eq(users.id, userId))) as any[];
+  const user = userRows[0];
   const totalCents = rewards.reduce((s: any, r: any) => s + r.amountCents, 0);
   const pendingCents = rewards
     .filter((r: any) => r.status === "pending")

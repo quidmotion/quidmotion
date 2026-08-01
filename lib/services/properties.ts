@@ -11,38 +11,38 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-export function listProperties(status?: string) {
+export async function listProperties(status?: string) {
   const db = getDb();
-  const rows = db
+  const rows = (await db
     .select()
     .from(properties)
-    .orderBy(desc(properties.createdAt))
-    .all();
+    .orderBy(desc(properties.createdAt))) as any[];
   if (status) return rows.filter((p: any) => p.status === status);
   return rows.filter((p: any) => p.status === "live" || p.status === "funded");
 }
 
-export function getProperty(id: string) {
+export async function getProperty(id: string) {
   const db = getDb();
-  return db.select().from(properties).where(eq(properties.id, id)).get();
+  const rows = (await db.select().from(properties).where(eq(properties.id, id))) as any[];
+  return rows[0];
 }
 
-export function listFeatured(limit = 6) {
+export async function listFeatured(limit = 6) {
   const db = getDb();
-  return db
+  const rows = (await db
     .select()
     .from(properties)
-    .orderBy(desc(properties.createdAt))
-    .all()
+    .orderBy(desc(properties.createdAt))) as any[];
+  return rows
     .filter((p: any) => p.featured && (p.status === "live" || p.status === "funded"))
     .slice(0, limit);
 }
 
-export function listAllAdmin(actorId: string) {
+export async function listAllAdmin(actorId: string) {
   const actor = loadActor(actorId);
   assertAdmin(actor);
   const db = getDb();
-  return db.select().from(properties).orderBy(desc(properties.createdAt)).all();
+  return (await db.select().from(properties).orderBy(desc(properties.createdAt))) as any[];
 }
 
 export type PropertyInput = {
@@ -57,7 +57,7 @@ export type PropertyInput = {
   featured?: boolean;
 };
 
-export function createProperty(actorId: string, input: PropertyInput) {
+export async function createProperty(actorId: string, input: PropertyInput) {
   const actor = loadActor(actorId);
   assertAdmin(actor);
 
@@ -75,7 +75,7 @@ export function createProperty(actorId: string, input: PropertyInput) {
   const id = randomUUID();
   const createdAt = nowIso();
 
-  db.insert(properties)
+  await db.insert(properties)
     .values({
       id,
       name: input.name.trim(),
@@ -89,8 +89,7 @@ export function createProperty(actorId: string, input: PropertyInput) {
       featured: input.featured ?? true,
       createdAt,
       updatedAt: createdAt,
-    })
-    .run();
+    });
 
   logEvent({
     actorId: actor.id,
@@ -99,10 +98,10 @@ export function createProperty(actorId: string, input: PropertyInput) {
     resourceId: id,
   });
 
-  return getProperty(id)!;
+  return (await getProperty(id))!;
 }
 
-export function updateProperty(
+export async function updateProperty(
   actorId: string,
   propertyId: string,
   input: Partial<PropertyInput>,
@@ -110,11 +109,11 @@ export function updateProperty(
   const actor = loadActor(actorId);
   assertAdmin(actor);
   const db = getDb();
-  const existing = getProperty(propertyId);
+  const existing = await getProperty(propertyId);
   if (!existing) throw new AppError("NOT_FOUND", "Property not found", 404);
 
   const updatedAt = nowIso();
-  db.update(properties)
+  await db.update(properties)
     .set({
       name: input.name?.trim() ?? existing.name,
       location: input.location?.trim() ?? existing.location,
@@ -130,8 +129,7 @@ export function updateProperty(
       featured: input.featured ?? existing.featured,
       updatedAt,
     })
-    .where(eq(properties.id, propertyId))
-    .run();
+    .where(eq(properties.id, propertyId));
 
   logEvent({
     actorId: actor.id,
@@ -140,14 +138,14 @@ export function updateProperty(
     resourceId: propertyId,
   });
 
-  return getProperty(propertyId)!;
+  return (await getProperty(propertyId))!;
 }
 
-export function deleteProperty(actorId: string, propertyId: string) {
+export async function deleteProperty(actorId: string, propertyId: string) {
   const actor = loadActor(actorId);
   assertAdmin(actor);
-  const existing = getProperty(propertyId);
+  const existing = await getProperty(propertyId);
   if (!existing) throw new AppError("NOT_FOUND", "Property not found", 404);
   // Soft-close rather than hard delete to preserve investment FKs
-  return updateProperty(actorId, propertyId, { status: "closed", featured: false });
+  return await updateProperty(actorId, propertyId, { status: "closed", featured: false });
 }

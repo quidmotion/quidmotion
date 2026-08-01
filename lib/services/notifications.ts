@@ -5,17 +5,16 @@ import { getDb } from "@/lib/db";
 import { notifications } from "@/lib/db/schema";
 import { assertSelfOrAdmin, loadActor } from "./_authz";
 
-export function listNotifications(actorId: string, userId: string, limit = 10) {
+export async function listNotifications(actorId: string, userId: string, limit = 10) {
   const actor = loadActor(actorId);
   assertSelfOrAdmin(actor, userId);
   const db = getDb();
-  return db
+  const rows = (await db
     .select()
     .from(notifications)
     .where(eq(notifications.userId, userId))
-    .orderBy(desc(notifications.createdAt))
-    .all()
-    .slice(0, limit);
+    .orderBy(desc(notifications.createdAt))) as any[];
+  return rows.slice(0, limit);
 }
 
 export function createNotification(input: {

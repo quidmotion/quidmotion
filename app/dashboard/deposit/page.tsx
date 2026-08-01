@@ -24,7 +24,7 @@ function statusTone(status: string) {
 export default async function DepositPage() {
   const session = await getAuth().getSession();
   if (!session) redirect("/login");
-  const balance = getBalances(session.user.id);
+  const balance = await getBalances(session.user.id);
   const assets = listSupportedAssets();
   const addresses = getAllDepositAddresses();
   const deposits = listUserDeposits(session.user.id, session.user.id);

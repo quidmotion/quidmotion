@@ -6,13 +6,8 @@ import { Badge } from "@/components/ui/Badge";
 import { InvestmentDisclaimer } from "@/components/shared/InvestmentDisclaimer";
 import { formatUsd } from "@/lib/money";
 import { getPlatformStats } from "@/lib/services/stats";
-import { listPlans } from "@/lib/services/investments";
-import { listFaq } from "@/lib/services/faq";
-import type { investmentPlans, faqEntries } from "@/lib/db/schema";
-import type { InferSelectModel } from "drizzle-orm";
-
-type Plan = InferSelectModel<typeof investmentPlans>;
-type FaqEntry = InferSelectModel<typeof faqEntries>;
+import { listPlans, type InvestmentPlan } from "@/lib/services/investments";
+import { listFaq, type FaqEntry } from "@/lib/services/faq";
 
 export default function HomePage() {
   const stats = getPlatformStats();
@@ -145,7 +140,7 @@ export default function HomePage() {
           </Link>
         </div>
         <div className="grid gap-4 md:grid-cols-3">
-          {plans.map((plan: Plan) => (
+          {plans.map((plan: InvestmentPlan) => (
             <Card key={plan.id} className="flex flex-col">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold">{plan.name}</h3>

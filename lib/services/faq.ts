@@ -3,13 +3,17 @@ import { asc } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { faqEntries } from "@/lib/db/schema";
 
-export function listFaq(opts: { category?: string; q?: string } = {}) {
+import type { InferSelectModel } from "drizzle-orm";
+
+export type FaqEntry = InferSelectModel<typeof faqEntries>;
+
+export function listFaq(opts: { category?: string; q?: string } = {}): FaqEntry[] {
   const db = getDb();
-  let rows = db
+  let rows = (db
     .select()
     .from(faqEntries)
     .orderBy(asc(faqEntries.sortOrder))
-    .all()
+    .all() as FaqEntry[])
     .filter((r) => r.published);
 
   if (opts.category) {

@@ -27,11 +27,14 @@ import {
   totalActiveInvestedCents,
 } from "./growth";
 
-export type TimeRange = "1D" | "7D" | "6M" | "YTD" | "1Y" | "All";
+import type { InferSelectModel } from "drizzle-orm";
 
-export function listPlans(activeOnly = true) {
+export type TimeRange = "1D" | "7D" | "6M" | "YTD" | "1Y" | "All";
+export type InvestmentPlan = InferSelectModel<typeof investmentPlans>;
+
+export function listPlans(activeOnly = true): InvestmentPlan[] {
   const db = getDb();
-  const rows = db.select().from(investmentPlans).all();
+  const rows = db.select().from(investmentPlans).all() as InvestmentPlan[];
   return activeOnly ? rows.filter((p) => p.status === "active") : rows;
 }
 

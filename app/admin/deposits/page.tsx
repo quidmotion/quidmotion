@@ -18,8 +18,8 @@ function statusTone(status: string) {
 
 export default async function AdminDepositsPage() {
   const session = await getAuth().getSession();
-  const pending = listPendingDeposits(session!.user.id);
-  const history = listAdminDeposits(session!.user.id, 40).filter(
+  const pending = await listPendingDeposits(session!.user.id);
+  const history = (await listAdminDeposits(session!.user.id, 40)).filter(
     (d: any) => d.status !== "pending",
   );
 

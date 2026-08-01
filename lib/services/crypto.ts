@@ -96,7 +96,7 @@ export async function fetchLivePrices(): Promise<
     return rows;
   } catch (e) {
     console.warn("[prices] live fetch failed, using cache/fallback", e);
-    const cached = listCachedLatestPrices();
+    const cached = await listCachedLatestPrices();
     if (cached.length) {
       return cached.map((c: any) => ({
         asset: c.asset,
@@ -114,13 +114,12 @@ export async function fetchLivePrices(): Promise<
   }
 }
 
-function listCachedLatestPrices() {
+async function listCachedLatestPrices() {
   const db = getDb();
-  const all = db
+  const all = (await db
     .select()
     .from(priceSnapshots)
-    .orderBy(desc(priceSnapshots.asOf))
-    .all();
+    .orderBy(desc(priceSnapshots.asOf))) as any[];
   const latest = new Map<string, (typeof all)[0]>();
   for (const row of all) {
     if (!latest.has(row.asset)) latest.set(row.asset, row);
@@ -130,7 +129,7 @@ function listCachedLatestPrices() {
 
 export async function getPrices() {
   // Prefer fresh live; fall back to latest cache if fetched recently (<2 min)
-  const cached = listCachedLatestPrices();
+  const cached = await listCachedLatestPrices();
   const freshEnough =
     cached.length >= 4 &&
     cached.every(
@@ -163,9 +162,9 @@ export function listSupportedAssets() {
   }));
 }
 
-export function getDepositAddress(_userId: string | null, asset = "USDT") {
+export async function getDepositAddress(_userId: string | null, asset = "USDT") {
   const key = asset.toUpperCase();
-  const wallets = getDepositWallets();
+  const wallets = await getDepositWallets();
   const row = wallets.find((w: any) => w.asset === key);
   if (!row || !row.address) {
     throw new AppError(
@@ -181,8 +180,9 @@ export function getDepositAddress(_userId: string | null, asset = "USDT") {
   };
 }
 
-export function getAllDepositAddresses() {
-  return getDepositWallets().map((w: any) => ({
+export async function getAllDepositAddresses() {
+  const wallets = await getDepositWallets();
+  return wallets.map((w: any) => ({
     asset: w.asset,
     address: w.address,
     network: w.network,
@@ -190,9 +190,9 @@ export function getAllDepositAddresses() {
 }
 
 /** Convert crypto units to USD cents using latest known prices. */
-export function toUsdCents(asset: string, units: number): number {
+export async function toUsdCents(asset: string, units: number): Promise<number> {
   const key = asset.toUpperCase();
-  const cached = listCachedLatestPrices().find((p: any) => p.asset === key);
+  const cached = (await listCachedLatestPrices()).find((p: any) => p.asset === key);
   const price = cached?.priceUsdCents ?? SAFE_FALLBACK[key];
   if (!price) throw new AppError("VALIDATION", `Unsupported asset: ${asset}`);
   if (key === "USDT" || key === "USDC") {
@@ -222,7 +222,7 @@ export async function requestDeposit(
     throw new AppError("VALIDATION", "Amount must be positive");
   }
 
-  const wallet = getDepositAddress(actor.id, asset);
+  const wallet = await getDepositAddress(actor.id, asset);
 
   const amountCents = Math.round(input.amountUsd * 100);
   if (amountCents < 1000) {
@@ -234,7 +234,7 @@ export async function requestDeposit(
   const createdAt = nowIso();
   const txRef = input.txRef?.trim() || `dep_${id.slice(0, 8)}`;
 
-  db.insert(transactions)
+  await db.insert(transactions)
     .values({
       id,
       userId: actor.id,
@@ -249,8 +249,7 @@ export async function requestDeposit(
         platformAddress: wallet.address,
       }),
       createdAt,
-    })
-    .run();
+    });
 
   logEvent({
     actorId: actor.id,
@@ -269,7 +268,8 @@ export async function requestDeposit(
 
   await notifyDepositRequested(actor.id, amountCents, asset, txRef);
 
-  return db.select().from(transactions).where(eq(transactions.id, id)).get()!;
+  const createdRows = (await db.select().from(transactions).where(eq(transactions.id, id))) as any[];
+  return createdRows[0]!;
 }
 
 /** @deprecated use requestDeposit — no longer auto-credits */
@@ -291,35 +291,34 @@ export function simulateDepositConfirm(
   });
 }
 
-export function listUserDeposits(actorId: string, userId: string) {
+export async function listUserDeposits(actorId: string, userId: string) {
   const actor = loadActor(actorId);
   assertSelfOrAdmin(actor, userId);
   const db = getDb();
-  return db
+  return (await db
     .select()
     .from(transactions)
     .where(
       and(eq(transactions.userId, userId), eq(transactions.type, "deposit")),
     )
-    .orderBy(desc(transactions.createdAt))
-    .all();
+    .orderBy(desc(transactions.createdAt))) as any[];
 }
 
-export function listPendingDeposits(actorId: string) {
+export async function listPendingDeposits(actorId: string) {
   const actor = loadActor(actorId);
   assertAdmin(actor);
   const db = getDb();
-  const rows = db
+  const rows = (await db
     .select()
     .from(transactions)
     .where(
       and(eq(transactions.type, "deposit"), eq(transactions.status, "pending")),
     )
-    .orderBy(desc(transactions.createdAt))
-    .all();
+    .orderBy(desc(transactions.createdAt))) as any[];
 
-  return rows.map((t: any) => {
-    const user = db.select().from(users).where(eq(users.id, t.userId)).get();
+  return Promise.all(rows.map(async (t: any) => {
+    const userRows = (await db.select().from(users).where(eq(users.id, t.userId))) as any[];
+    const user = userRows[0];
     let meta: Record<string, unknown> = {};
     try {
       meta = t.meta ? JSON.parse(t.meta) : {};
@@ -332,29 +331,30 @@ export function listPendingDeposits(actorId: string) {
       userName: user?.name,
       meta,
     };
-  });
+  }));
 }
 
-export function listAdminDeposits(actorId: string, limit = 50) {
+export async function listAdminDeposits(actorId: string, limit = 50) {
   const actor = loadActor(actorId);
   assertAdmin(actor);
   const db = getDb();
-  const rows = db
+  const rows = (await db
     .select()
     .from(transactions)
     .where(eq(transactions.type, "deposit"))
-    .orderBy(desc(transactions.createdAt))
-    .all()
-    .slice(0, limit);
+    .orderBy(desc(transactions.createdAt))) as any[];
 
-  return rows.map((t: any) => {
-    const user = db.select().from(users).where(eq(users.id, t.userId)).get();
+  const sliced = rows.slice(0, limit);
+
+  return Promise.all(sliced.map(async (t: any) => {
+    const userRows = (await db.select().from(users).where(eq(users.id, t.userId))) as any[];
+    const user = userRows[0];
     return {
       ...t,
       userEmail: user?.email,
       userName: user?.name,
     };
-  });
+  }));
 }
 
 /**
@@ -500,8 +500,8 @@ export async function adminRejectDeposit(
     .get()!;
 }
 
-export function listRecentPrices() {
-  const cached = listCachedLatestPrices();
+export async function listRecentPrices() {
+  const cached = await listCachedLatestPrices();
   if (cached.length) return cached;
   return getMockPrices().map((p: any) => ({
     id: p.asset,

@@ -23,7 +23,7 @@ function statusLabel(status: string) {
 
 export default async function AdminPayoutsPage() {
   const session = await getAuth().getSession();
-  const all = listAdminWithdrawals(session!.user.id);
+  const all = await listAdminWithdrawals(session!.user.id);
   const pending = all.filter((p: any) => p.status === "pending_approval");
   const processing = all.filter((p: any) => p.status === "processing");
   const history = all.filter(

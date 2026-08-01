@@ -9,7 +9,7 @@ export default async function SettingsPage() {
   const session = await getAuth().getSession();
   if (!session) redirect("/login");
   const { user } = session;
-  const latest = getLatestForUser(user.id, user.id);
+  const latest = await getLatestForUser(user.id, user.id);
 
   const kycTone =
     user.kycStatus === "approved"

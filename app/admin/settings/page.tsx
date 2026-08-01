@@ -20,11 +20,11 @@ import {
 
 export default async function AdminSettingsPage() {
   const session = await getAuth().getSession();
-  const wallets = getDepositWallets();
-  const emails = getOfficialEmails();
+  const wallets = await getDepositWallets();
+  const emails = await getOfficialEmails();
   const rates = listDefaultPortfolioRates();
   const mults = getLockupMultipliers();
-  const prices = listRecentPrices();
+  const prices = await listRecentPrices();
   const outbox = listEmailOutbox(session!.user.id, 15);
 
   return (

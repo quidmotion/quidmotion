@@ -9,24 +9,27 @@ import { eq } from "drizzle-orm";
 
 export default async function AdminKycPage() {
   const session = await getAuth().getSession();
-  const pending = listQueue(session!.user.id);
+  const pending = await listQueue(session!.user.id);
   const db = getDb();
 
-  const enriched = pending.map((k: any) => {
-    const user = db.select().from(users).where(eq(users.id, k.userId)).get();
-    let paths: string[] = [];
-    try {
-      paths = JSON.parse(k.documentPaths || "[]");
-    } catch {
-      paths = [];
-    }
-    return {
-      ...k,
-      userEmail: user?.email,
-      userName: user?.name,
-      paths,
-    };
-  });
+  const enriched = await Promise.all(
+    pending.map(async (k: any) => {
+      const userRows = (await db.select().from(users).where(eq(users.id, k.userId))) as any[];
+      const user = userRows[0];
+      let paths: string[] = [];
+      try {
+        paths = JSON.parse(k.documentPaths || "[]");
+      } catch {
+        paths = [];
+      }
+      return {
+        ...k,
+        userEmail: user?.email,
+        userName: user?.name,
+        paths,
+      };
+    })
+  );
 
   return (
     <div className="space-y-4">

@@ -17,7 +17,7 @@ async function toggleStatus(formData: FormData) {
 
 export default async function AdminUsersPage() {
   const session = await getAuth().getSession();
-  const { items: users, total } = listUsers(session!.user.id);
+  const { items: users, total } = await listUsers(session!.user.id);
 
   return (
     <div className="space-y-4">

@@ -117,53 +117,52 @@ export async function submit(actorId: string, input: KycSubmitInput) {
   return db.select().from(kycSubmissions).where(eq(kycSubmissions.id, id)).get()!;
 }
 
-export function getLatestForUser(actorId: string, userId: string) {
+export async function getLatestForUser(actorId: string, userId: string) {
   const actor = loadActor(actorId);
   assertSelfOrAdmin(actor, userId);
   const db = getDb();
-  return db
+  const rows = (await db
     .select()
     .from(kycSubmissions)
     .where(eq(kycSubmissions.userId, userId))
-    .orderBy(desc(kycSubmissions.createdAt))
-    .all()[0];
+    .orderBy(desc(kycSubmissions.createdAt))) as any[];
+  return rows[0];
 }
 
-export function listQueue(actorId: string) {
+export async function listQueue(actorId: string) {
   const actor = loadActor(actorId);
   assertAdmin(actor);
   const db = getDb();
-  return db
+  return (await db
     .select()
     .from(kycSubmissions)
     .where(eq(kycSubmissions.status, "pending"))
-    .orderBy(desc(kycSubmissions.createdAt))
-    .all();
+    .orderBy(desc(kycSubmissions.createdAt))) as any[];
 }
 
-export function listAll(actorId: string, limit = 100) {
+export async function listAll(actorId: string, limit = 100) {
   const actor = loadActor(actorId);
   assertAdmin(actor);
   const db = getDb();
-  return db
+  const rows = (await db
     .select()
     .from(kycSubmissions)
-    .orderBy(desc(kycSubmissions.createdAt))
-    .all()
-    .slice(0, limit);
+    .orderBy(desc(kycSubmissions.createdAt))) as any[];
+  return rows.slice(0, limit);
 }
 
-export function getSubmission(actorId: string, submissionId: string) {
+export async function getSubmission(actorId: string, submissionId: string) {
   const actor = loadActor(actorId);
   assertAdmin(actor);
   const db = getDb();
-  const row = db
+  const rows = (await db
     .select()
     .from(kycSubmissions)
-    .where(eq(kycSubmissions.id, submissionId))
-    .get();
+    .where(eq(kycSubmissions.id, submissionId))) as any[];
+  const row = rows[0];
   if (!row) throw new AppError("NOT_FOUND", "Submission not found", 404);
-  const user = db.select().from(users).where(eq(users.id, row.userId)).get();
+  const userRows = (await db.select().from(users).where(eq(users.id, row.userId))) as any[];
+  const user = userRows[0];
   return {
     ...row,
     documentPaths: JSON.parse(row.documentPaths || "[]") as string[],
@@ -181,29 +180,27 @@ export async function review(
   const actor = loadActor(actorId);
   assertAdmin(actor);
   const db = getDb();
-  const row = db
+  const rows = (await db
     .select()
     .from(kycSubmissions)
-    .where(eq(kycSubmissions.id, submissionId))
-    .get();
+    .where(eq(kycSubmissions.id, submissionId))) as any[];
+  const row = rows[0];
   if (!row) throw new AppError("NOT_FOUND", "Submission not found", 404);
   if (row.status !== "pending") {
     throw new AppError("INVALID_STATE", "Already reviewed");
   }
   const now = nowIso();
-  db.update(kycSubmissions)
+  await db.update(kycSubmissions)
     .set({
       status: decision,
       reviewerNote: note,
       reviewedBy: actor.id,
       reviewedAt: now,
     })
-    .where(eq(kycSubmissions.id, submissionId))
-    .run();
-  db.update(users)
+    .where(eq(kycSubmissions.id, submissionId));
+  await db.update(users)
     .set({ kycStatus: decision, updatedAt: now })
-    .where(eq(users.id, row.userId))
-    .run();
+    .where(eq(users.id, row.userId));
 
   logEvent({
     actorId: actor.id,
@@ -215,9 +212,9 @@ export async function review(
 
   await notifyKycStatus(row.userId, decision, note);
 
-  return db
+  const updatedRows = (await db
     .select()
     .from(kycSubmissions)
-    .where(eq(kycSubmissions.id, submissionId))
-    .get()!;
+    .where(eq(kycSubmissions.id, submissionId))) as any[];
+  return updatedRows[0]!;
 }

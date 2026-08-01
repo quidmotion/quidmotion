@@ -30,14 +30,13 @@ import type { InferSelectModel } from "drizzle-orm";
 
 export type AuditEvent = InferSelectModel<typeof auditEvents>;
 
-export function listAudit(actorId: string, limit = 100): AuditEvent[] {
+export async function listAudit(actorId: string, limit = 100): Promise<AuditEvent[]> {
   const actor = loadActor(actorId);
   assertAdmin(actor);
   const db = getDb();
-  return (db
+  const rows = (await db
     .select()
     .from(auditEvents)
-    .orderBy(desc(auditEvents.createdAt))
-    .all() as AuditEvent[])
-    .slice(0, limit);
+    .orderBy(desc(auditEvents.createdAt))) as AuditEvent[];
+  return rows.slice(0, limit);
 }

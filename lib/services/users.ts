@@ -5,24 +5,25 @@ import { users } from "@/lib/db/schema";
 import { AppError } from "@/lib/errors";
 import { assertAdmin, assertSelfOrAdmin, loadActor } from "./_authz";
 
-export function getUser(actorId: string, userId: string) {
+export async function getUser(actorId: string, userId: string) {
   const actor = loadActor(actorId);
   assertSelfOrAdmin(actor, userId);
   const db = getDb();
-  const row = db.select().from(users).where(eq(users.id, userId)).get();
+  const rows = (await db.select().from(users).where(eq(users.id, userId))) as any[];
+  const row = rows[0];
   if (!row) throw new AppError("NOT_FOUND", "User not found", 404);
   const { passwordHash: _, ...safe } = row;
   return safe;
 }
 
-export function listUsers(
+export async function listUsers(
   actorId: string,
   opts: { q?: string; page?: number; pageSize?: number } = {},
 ) {
   const actor = loadActor(actorId);
   assertAdmin(actor);
   const db = getDb();
-  let rows = db.select().from(users).orderBy(desc(users.createdAt)).all();
+  let rows = (await db.select().from(users).orderBy(desc(users.createdAt))) as any[];
   if (opts.q) {
     const q = opts.q.toLowerCase();
     rows = rows.filter(
@@ -43,7 +44,7 @@ export function listUsers(
   };
 }
 
-export function setUserStatus(
+export async function setUserStatus(
   actorId: string,
   userId: string,
   status: "active" | "suspended",
@@ -51,9 +52,8 @@ export function setUserStatus(
   const actor = loadActor(actorId);
   assertAdmin(actor);
   const db = getDb();
-  db.update(users)
+  await db.update(users)
     .set({ status, updatedAt: new Date().toISOString() })
-    .where(eq(users.id, userId))
-    .run();
+    .where(eq(users.id, userId));
   return getUser(actorId, userId);
 }

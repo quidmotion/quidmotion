@@ -26,8 +26,8 @@ export default async function DepositPage() {
   if (!session) redirect("/login");
   const balance = await getBalances(session.user.id);
   const assets = listSupportedAssets();
-  const addresses = getAllDepositAddresses();
-  const deposits = listUserDeposits(session.user.id, session.user.id);
+  const addresses = await getAllDepositAddresses();
+  const deposits = await listUserDeposits(session.user.id, session.user.id);
   let prices: Awaited<ReturnType<typeof getPrices>> = [];
   try {
     prices = await getPrices();

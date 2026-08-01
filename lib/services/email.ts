@@ -124,6 +124,39 @@ async function deliverViaProvider(input: {
   }
 }
 
+export async function enqueueEmail(input: {
+  toEmail: string;
+  title: string;
+  bodyHtml: string;
+  bodyText: string;
+  kind: EmailKind;
+  meta?: Record<string, unknown>;
+}) {
+  const emails = await getOfficialEmails();
+  const from = emails.noreply;
+  const html = wrapHtml(input.title, input.bodyHtml, emails.support);
+  const id = randomUUID();
+  const createdAt = nowIso();
+  const db = getDb();
+
+  db.insert(emailOutbox)
+    .values({
+      id,
+      toEmail: input.toEmail,
+      fromEmail: from,
+      subject: input.title,
+      bodyHtml: html,
+      bodyText: input.bodyText,
+      kind: input.kind,
+      status: "pending",
+      meta: input.meta ? JSON.stringify(input.meta) : null,
+      createdAt,
+    })
+    .run();
+  
+  return id;
+}
+
 export async function sendTransactionalEmail(input: {
   to: string;
   subject: string;
@@ -133,7 +166,7 @@ export async function sendTransactionalEmail(input: {
   kind: EmailKind;
   meta?: Record<string, unknown>;
 }) {
-  const emails = getOfficialEmails();
+  const emails = await getOfficialEmails();
   const from = emails.noreply;
   const html = wrapHtml(input.title, input.bodyHtml, emails.support);
   const id = randomUUID();

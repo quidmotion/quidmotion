@@ -5,7 +5,7 @@ import { Island, IslandBody, IslandHeader } from "@/components/ui/Island";
 
 export default async function AdminAuditPage() {
   const session = await getAuth().getSession();
-  const events = listAudit(session!.user.id, 100);
+  const events = await listAudit(session!.user.id, 100);
 
   return (
     <div className="space-y-4">

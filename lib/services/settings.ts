@@ -20,21 +20,21 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-export function getSetting(key: string): string | null {
+export async function getSetting(key: string): Promise<string | null> {
   const db = getDb();
-  const row = db
+  const rows = (await db
     .select()
     .from(platformSettings)
-    .where(eq(platformSettings.key, key))
-    .get();
-  return row?.value ?? null;
+    .where(eq(platformSettings.key, key))) as any[];
+  return rows[0]?.value ?? null;
 }
 
-export function getSettingOrDefault(key: string, fallback: string): string {
-  return getSetting(key) ?? fallback;
+export async function getSettingOrDefault(key: string, fallback: string): Promise<string> {
+  const val = await getSetting(key);
+  return val ?? fallback;
 }
 
-export function setSetting(
+export async function setSetting(
   actorId: string,
   key: string,
   value: string,
@@ -43,20 +43,14 @@ export function setSetting(
   assertAdmin(actor);
   const db = getDb();
   const now = nowIso();
-  const existing = db
-    .select()
-    .from(platformSettings)
-    .where(eq(platformSettings.key, key))
-    .get();
-  if (existing) {
-    db.update(platformSettings)
+  const existing = await getSetting(key);
+  if (existing !== null) {
+    await db.update(platformSettings)
       .set({ value, updatedAt: now, updatedBy: actor.id })
-      .where(eq(platformSettings.key, key))
-      .run();
+      .where(eq(platformSettings.key, key));
   } else {
-    db.insert(platformSettings)
-      .values({ key, value, updatedAt: now, updatedBy: actor.id })
-      .run();
+    await db.insert(platformSettings)
+      .values({ key, value, updatedAt: now, updatedBy: actor.id });
   }
   logEvent({
     actorId: actor.id,
@@ -68,48 +62,48 @@ export function setSetting(
   return { key, value, updatedAt: now };
 }
 
-export function setSettings(
+export async function setSettings(
   actorId: string,
   entries: Record<string, string>,
 ) {
   for (const [key, value] of Object.entries(entries)) {
     if (value === undefined || value === null) continue;
-    setSetting(actorId, key, String(value).trim());
+    await setSetting(actorId, key, String(value).trim());
   }
 }
 
-export function getDepositWallets() {
-  return DEPOSIT_ASSETS.map((asset: any) => ({
+export async function getDepositWallets() {
+  return Promise.all(DEPOSIT_ASSETS.map(async (asset: any) => ({
     asset,
-    address: getSettingOrDefault(
+    address: await getSettingOrDefault(
       SETTING_KEYS.depositWallet(asset),
       "",
     ),
-    network: getSettingOrDefault(
+    network: await getSettingOrDefault(
       SETTING_KEYS.depositNetwork(asset),
       asset === "BTC" ? "Bitcoin" : "Ethereum",
     ),
-  }));
+  })));
 }
 
-export function getOfficialEmails() {
+export async function getOfficialEmails() {
   return {
-    contact: getSettingOrDefault(
+    contact: await getSettingOrDefault(
       SETTING_KEYS.emailContact,
       "contact@quidmotion.com",
     ),
-    support: getSettingOrDefault(
+    support: await getSettingOrDefault(
       SETTING_KEYS.emailSupport,
       "support@quidmotion.com",
     ),
-    noreply: getSettingOrDefault(
+    noreply: await getSettingOrDefault(
       SETTING_KEYS.emailNoreply,
       "noreply@quidmotion.com",
     ),
   };
 }
 
-export function updateDepositWallets(
+export async function updateDepositWallets(
   actorId: string,
   wallets: { asset: string; address: string; network?: string }[],
 ) {
@@ -123,15 +117,15 @@ export function updateDepositWallets(
     if (!w.address?.trim()) {
       throw new AppError("VALIDATION", `${asset} deposit address is required`);
     }
-    setSetting(actorId, SETTING_KEYS.depositWallet(asset), w.address.trim());
+    await setSetting(actorId, SETTING_KEYS.depositWallet(asset), w.address.trim());
     if (w.network?.trim()) {
-      setSetting(actorId, SETTING_KEYS.depositNetwork(asset), w.network.trim());
+      await setSetting(actorId, SETTING_KEYS.depositNetwork(asset), w.network.trim());
     }
   }
   return getDepositWallets();
 }
 
-export function updateOfficialEmails(
+export async function updateOfficialEmails(
   actorId: string,
   emails: { contact?: string; support?: string; noreply?: string },
 ) {
@@ -142,26 +136,26 @@ export function updateOfficialEmails(
     if (!emailRe.test(emails.contact)) {
       throw new AppError("VALIDATION", "Invalid contact email");
     }
-    setSetting(actorId, SETTING_KEYS.emailContact, emails.contact.trim());
+    await setSetting(actorId, SETTING_KEYS.emailContact, emails.contact.trim());
   }
   if (emails.support !== undefined) {
     if (!emailRe.test(emails.support)) {
       throw new AppError("VALIDATION", "Invalid support email");
     }
-    setSetting(actorId, SETTING_KEYS.emailSupport, emails.support.trim());
+    await setSetting(actorId, SETTING_KEYS.emailSupport, emails.support.trim());
   }
   if (emails.noreply !== undefined) {
     if (!emailRe.test(emails.noreply)) {
       throw new AppError("VALIDATION", "Invalid no-reply email");
     }
-    setSetting(actorId, SETTING_KEYS.emailNoreply, emails.noreply.trim());
+    await setSetting(actorId, SETTING_KEYS.emailNoreply, emails.noreply.trim());
   }
   return getOfficialEmails();
 }
 
-export function listAllSettings(actorId: string) {
+export async function listAllSettings(actorId: string) {
   const actor = loadActor(actorId);
   assertAdmin(actor);
   const db = getDb();
-  return db.select().from(platformSettings).all();
+  return (await db.select().from(platformSettings)) as any[];
 }

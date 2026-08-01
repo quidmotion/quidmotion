@@ -67,6 +67,26 @@ function parsePgOptions(url: string) {
   };
 }
 
+function patchDrizzlePostgres(db: any) {
+  try {
+    const dummyQuery = db.select().from(schema.users);
+    const proto = Object.getPrototypeOf(dummyQuery);
+    if (proto && !proto.get) {
+      proto.all = function () {
+        return this;
+      };
+      proto.get = function () {
+        return this.then((rows: any) =>
+          Array.isArray(rows) ? rows[0] : rows,
+        );
+      };
+      proto.run = function () {
+        return this;
+      };
+    }
+  } catch {}
+}
+
 /**
  * Supabase/Postgres adapter.
  * Uses the `DATABASE_URL` env var (supabase connection string).
@@ -87,6 +107,8 @@ export function createSupabaseAdapter(): DbAdapter {
       ? postgres(options, { max: 5, prepare: false })
       : postgres(options);
   const db = drizzle(client, { schema });
+  patchDrizzlePostgres(db);
+
   return {
     provider: "supabase",
     db: db as unknown as any,

@@ -9,7 +9,7 @@ export default async function AdminPlansPage() {
   const session = await getAuth().getSession();
   // ensure admin session context for future mutations
   void session;
-  const plans = listPlans();
+  const plans = await listPlans();
 
   return (
     <div className="space-y-4">

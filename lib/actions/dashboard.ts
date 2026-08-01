@@ -77,7 +77,7 @@ export async function subscribeAction(
 ): Promise<Result> {
   try {
     const user = await requireUser();
-    await investments.subscribe(user.id, {
+    await investments.createInvestment(user.id, {
       planId,
       amountCents: toCents(amountUsd),
     });

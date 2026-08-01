@@ -15,8 +15,8 @@ import { RoiCalculator } from "@/components/marketing/RoiCalculator";
 
 export const metadata: Metadata = { title: "Investment Plans" };
 
-export default function PlansPage() {
-  const plans = listPlans();
+export default async function PlansPage() {
+  const plans = await listPlans();
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">

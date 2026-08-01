@@ -10,10 +10,10 @@ import { getPlatformStats } from "@/lib/services/stats";
 import { listPlans, type InvestmentPlan } from "@/lib/services/investments";
 import { listFaq, type FaqEntry } from "@/lib/services/faq";
 
-export default function HomePage() {
-  const stats = getPlatformStats();
-  const plans = listPlans().slice(0, 3);
-  const faqs = listFaq().slice(0, 4);
+export default async function HomePage() {
+  const stats = await getPlatformStats();
+  const plans = (await listPlans()).slice(0, 3);
+  const faqs = (await listFaq()).slice(0, 4);
 
   const steps = [
     {

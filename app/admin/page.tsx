@@ -4,8 +4,8 @@ import { getAdminOverview } from "@/lib/services/stats";
 import { formatUsd } from "@/lib/money";
 import { Island, IslandBody } from "@/components/ui/Island";
 
-export default function AdminOverviewPage() {
-  const o = getAdminOverview();
+export default async function AdminOverviewPage() {
+  const o = await getAdminOverview();
 
   const cards = [
     { label: "Total users", value: String(o.totalUsers), href: "/admin/users" },

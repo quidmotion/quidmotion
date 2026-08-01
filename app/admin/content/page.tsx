@@ -3,9 +3,9 @@ import { listDocuments } from "@/lib/services/documents";
 import { listFaq } from "@/lib/services/faq";
 import { Island, IslandBody, IslandHeader } from "@/components/ui/Island";
 
-export default function AdminContentPage() {
+export default async function AdminContentPage() {
   const docs = listDocuments();
-  const faqs = listFaq();
+  const faqs = await listFaq();
 
   return (
     <div className="space-y-6">

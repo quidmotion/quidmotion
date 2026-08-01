@@ -7,13 +7,12 @@ import type { InferSelectModel } from "drizzle-orm";
 
 export type FaqEntry = InferSelectModel<typeof faqEntries>;
 
-export function listFaq(opts: { category?: string; q?: string } = {}): FaqEntry[] {
+export async function listFaq(opts: { category?: string; q?: string } = {}): Promise<FaqEntry[]> {
   const db = getDb();
-  let rows = (db
+  let rows = ((await db
     .select()
     .from(faqEntries)
-    .orderBy(asc(faqEntries.sortOrder))
-    .all() as FaqEntry[])
+    .orderBy(asc(faqEntries.sortOrder))) as FaqEntry[])
     .filter((r: any) => r.published);
 
   if (opts.category) {
@@ -22,7 +21,7 @@ export function listFaq(opts: { category?: string; q?: string } = {}): FaqEntry[
   if (opts.q) {
     const q = opts.q.toLowerCase();
     rows = rows.filter(
-      (r) =>
+      (r: any) =>
         r.question.toLowerCase().includes(q) ||
         r.answer.toLowerCase().includes(q),
     );
@@ -30,7 +29,7 @@ export function listFaq(opts: { category?: string; q?: string } = {}): FaqEntry[
   return rows;
 }
 
-export function listCategories(): string[] {
-  const rows = listFaq();
+export async function listCategories(): Promise<string[]> {
+  const rows = await listFaq();
   return [...new Set(rows.map((r: any) => r.category as string))];
 }

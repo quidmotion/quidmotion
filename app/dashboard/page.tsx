@@ -28,7 +28,7 @@ export default async function DashboardPage() {
   const upcoming = listUpcoming(uid, uid);
   const properties = listFeatured(6);
   const notes = listNotifications(uid, uid, 3);
-  const plans = listPlans().slice(0, 2);
+  const plans = (await listPlans()).slice(0, 2);
 
   let rewards = null;
   if (features.referrals) {

@@ -5,9 +5,9 @@ import { FaqClient } from "@/components/marketing/FaqClient";
 
 export const metadata: Metadata = { title: "FAQ" };
 
-export default function FaqPage() {
-  const entries = listFaq();
-  const categories = listCategories();
+export default async function FaqPage() {
+  const entries = await listFaq();
+  const categories = await listCategories();
   return (
     <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
       <h1 className="text-4xl font-semibold tracking-tight">FAQ</h1>

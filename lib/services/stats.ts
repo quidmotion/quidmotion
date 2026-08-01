@@ -11,17 +11,17 @@ import {
   transactions,
 } from "@/lib/db/schema";
 
-export function getPlatformStats() {
+export async function getPlatformStats() {
   const db = getDb();
-  const latest = db
+  const rows = (await db
     .select()
     .from(platformStatsDaily)
-    .orderBy(desc(platformStatsDaily.asOf))
-    .get();
+    .orderBy(desc(platformStatsDaily.asOf))) as any[];
+  const latest = rows[0];
 
   if (latest) {
     return {
-      totalInvestedCents: latest.totalInvestedCents,
+      totalInvestedCents: Number(latest.totalInvestedCents),
       avgRoiBps: latest.avgRoiBps,
       propertiesFunded: latest.propertiesFunded,
       activeUsers: latest.activeUsers,
@@ -30,9 +30,9 @@ export function getPlatformStats() {
   }
 
   // Derive live from tables if seed stats missing
-  const allUsers = db.select().from(users).all();
-  const inv = db.select().from(userInvestments).all();
-  const props = db.select().from(properties).all();
+  const allUsers = (await db.select().from(users)) as any[];
+  const inv = (await db.select().from(userInvestments)) as any[];
+  const props = (await db.select().from(properties)) as any[];
   const totalInvestedCents = inv.reduce((s: any, i: any) => s + i.principalCents, 0);
   return {
     totalInvestedCents,
@@ -43,27 +43,24 @@ export function getPlatformStats() {
   };
 }
 
-export function getAdminOverview() {
+export async function getAdminOverview() {
   const db = getDb();
-  const allUsers = db.select().from(users).all();
-  const inv = db.select().from(userInvestments).all();
-  const kyc = db
+  const allUsers = (await db.select().from(users)) as any[];
+  const inv = (await db.select().from(userInvestments)) as any[];
+  const kyc = (await db
     .select()
     .from(kycSubmissions)
-    .where(eq(kycSubmissions.status, "pending"))
-    .all();
-  const pendingPays = db
+    .where(eq(kycSubmissions.status, "pending"))) as any[];
+  const pendingPays = (await db
     .select()
     .from(payouts)
-    .where(eq(payouts.status, "pending_approval"))
-    .all();
-  const processingPays = db
+    .where(eq(payouts.status, "pending_approval"))) as any[];
+  const processingPays = (await db
     .select()
     .from(payouts)
-    .where(eq(payouts.status, "processing"))
-    .all();
+    .where(eq(payouts.status, "processing"))) as any[];
 
-  const pendingDeposits = db
+  const pendingDeposits = (await db
     .select()
     .from(transactions)
     .where(
@@ -71,8 +68,7 @@ export function getAdminOverview() {
         eq(transactions.type, "deposit"),
         eq(transactions.status, "pending"),
       ),
-    )
-    .all();
+    )) as any[];
 
   return {
     totalUsers: allUsers.length,

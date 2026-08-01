@@ -32,26 +32,25 @@ import type { InferSelectModel } from "drizzle-orm";
 export type TimeRange = "1D" | "7D" | "6M" | "YTD" | "1Y" | "All";
 export type InvestmentPlan = InferSelectModel<typeof investmentPlans>;
 
-export function listPlans(activeOnly = true): InvestmentPlan[] {
+export async function listPlans(activeOnly = true): Promise<InvestmentPlan[]> {
   const db = getDb();
-  const rows = db.select().from(investmentPlans).all() as InvestmentPlan[];
+  const rows = (await db.select().from(investmentPlans)) as InvestmentPlan[];
   return activeOnly ? rows.filter((p: any) => p.status === "active") : rows;
 }
 
-export function getPlan(planIdOrSlug: string) {
+export async function getPlan(planIdOrSlug: string): Promise<InvestmentPlan | undefined> {
   const db = getDb();
-  return (
-    db
-      .select()
-      .from(investmentPlans)
-      .where(eq(investmentPlans.id, planIdOrSlug))
-      .get() ??
-    db
-      .select()
-      .from(investmentPlans)
-      .where(eq(investmentPlans.slug, planIdOrSlug))
-      .get()
-  );
+  const byId = await db
+    .select()
+    .from(investmentPlans)
+    .where(eq(investmentPlans.id, planIdOrSlug));
+  if (byId[0]) return byId[0] as InvestmentPlan;
+
+  const bySlug = await db
+    .select()
+    .from(investmentPlans)
+    .where(eq(investmentPlans.slug, planIdOrSlug));
+  return bySlug[0] as InvestmentPlan | undefined;
 }
 
 export function listUserInvestments(actorId: string, userId: string) {
@@ -68,10 +67,11 @@ export function listUserInvestments(actorId: string, userId: string) {
     .all();
 }
 
-export async function subscribe(
-  actorId: string,
-  input: { planId: string; amountCents: number; propertyId?: string },
-) {
+export async function createInvestment(actorId: string, input: {
+  planId: string;
+  propertyId?: string;
+  amountCents: number;
+}) {
   const actor = loadActor(actorId);
   assertActive(actor);
   assertKycApproved(actor);
@@ -80,7 +80,7 @@ export async function subscribe(
     throw new AppError("VALIDATION", "Amount must be positive");
   }
 
-  const plan = getPlan(input.planId);
+  const plan = await getPlan(input.planId);
   if (!plan || plan.status !== "active") {
     throw new AppError("NOT_FOUND", "Plan not found", 404);
   }
@@ -167,7 +167,8 @@ export async function subscribe(
     plan.lockupDays,
   );
 
-  return db.select().from(userInvestments).where(eq(userInvestments.id, id)).get()!;
+  const createdRows = await db.select().from(userInvestments).where(eq(userInvestments.id, id));
+  return createdRows[0]!;
 }
 
 export function getPortfolioSummary(actorId: string, userId: string) {

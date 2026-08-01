@@ -5,6 +5,17 @@ import postgres from "postgres";
 import { schema } from "../schema";
 import type { DbAdapter } from "../types";
 
+/** Serverless-friendly pool: few connections, no prepared statements (PgBouncer). */
+const SERVERLESS_PG = {
+  ssl: "require" as const,
+  // Vercel functions are short-lived; keep pool tiny to avoid exhausting Supabase slots.
+  max: 1,
+  prepare: false,
+  idle_timeout: 20,
+  connect_timeout: 10,
+  max_lifetime: 60 * 5,
+};
+
 function parsePgOptions(url: string) {
   if (process.env.PGHOST && process.env.PGPASSWORD) {
     return {
@@ -13,9 +24,7 @@ function parsePgOptions(url: string) {
       user: process.env.PGUSER ?? "postgres",
       password: process.env.PGPASSWORD,
       database: process.env.PGDATABASE ?? "postgres",
-      ssl: "require" as const,
-      max: 5,
-      prepare: false,
+      ...SERVERLESS_PG,
     };
   }
 
@@ -61,35 +70,14 @@ function parsePgOptions(url: string) {
     user,
     password,
     database,
-    ssl: "require" as const,
-    max: 5,
-    prepare: false,
+    ...SERVERLESS_PG,
   };
-}
-
-function patchDrizzlePostgres(db: any) {
-  try {
-    const dummyQuery = db.select().from(schema.users);
-    const proto = Object.getPrototypeOf(dummyQuery);
-    if (proto && !proto.get) {
-      proto.all = function () {
-        return this;
-      };
-      proto.get = function () {
-        return this.then((rows: any) =>
-          Array.isArray(rows) ? rows[0] : rows,
-        );
-      };
-      proto.run = function () {
-        return this;
-      };
-    }
-  } catch {}
 }
 
 /**
  * Supabase/Postgres adapter.
  * Uses the `DATABASE_URL` env var (supabase connection string).
+ * Prefer transaction pooler (port 6543) or session pooler (5432) with SSL.
  * Provides async client and a `close` method for graceful shutdown.
  */
 export function createSupabaseAdapter(): DbAdapter {
@@ -104,16 +92,15 @@ export function createSupabaseAdapter(): DbAdapter {
   const options = parsePgOptions(url);
   const client =
     typeof options === "string"
-      ? postgres(options, { max: 5, prepare: false })
+      ? postgres(options, SERVERLESS_PG)
       : postgres(options);
   const db = drizzle(client, { schema });
-  patchDrizzlePostgres(db);
 
   return {
     provider: "supabase",
     db: db as unknown as any,
     close: async () => {
-      await client.end();
+      await client.end({ timeout: 5 });
     },
   };
 }

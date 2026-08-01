@@ -6,8 +6,8 @@ import { Island, IslandBody } from "@/components/ui/Island";
 
 export const metadata: Metadata = { title: "Documents" };
 
-export default function DocumentsPage() {
-  const docs = listDocuments();
+export default async function DocumentsPage() {
+  const docs = await listDocuments();
   return (
     <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
       <h1 className="text-4xl font-semibold tracking-tight">Legal documents</h1>

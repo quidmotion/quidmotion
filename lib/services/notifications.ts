@@ -5,8 +5,12 @@ import { getDb } from "@/lib/db";
 import { notifications } from "@/lib/db/schema";
 import { assertSelfOrAdmin, loadActor } from "./_authz";
 
-export async function listNotifications(actorId: string, userId: string, limit = 10) {
-  const actor = loadActor(actorId);
+export async function listNotifications(
+  actorId: string,
+  userId: string,
+  limit = 10,
+) {
+  const actor = await loadActor(actorId);
   assertSelfOrAdmin(actor, userId);
   const db = getDb();
   const rows = (await db
@@ -17,7 +21,7 @@ export async function listNotifications(actorId: string, userId: string, limit =
   return rows.slice(0, limit);
 }
 
-export function createNotification(input: {
+export async function createNotification(input: {
   userId: string;
   title: string;
   body: string;
@@ -25,31 +29,29 @@ export function createNotification(input: {
 }) {
   const db = getDb();
   const id = randomUUID();
-  db.insert(notifications)
-    .values({
-      id,
-      userId: input.userId,
-      title: input.title,
-      body: input.body,
-      kind: input.kind ?? "info",
-      createdAt: new Date().toISOString(),
-    })
-    .run();
+  await db.insert(notifications).values({
+    id,
+    userId: input.userId,
+    title: input.title,
+    body: input.body,
+    kind: input.kind ?? "info",
+    createdAt: new Date().toISOString(),
+  });
   return id;
 }
 
-export function markRead(actorId: string, notificationId: string) {
-  const actor = loadActor(actorId);
+export async function markRead(actorId: string, notificationId: string) {
+  const actor = await loadActor(actorId);
   const db = getDb();
-  const row = db
+  const rows = (await db
     .select()
     .from(notifications)
-    .where(eq(notifications.id, notificationId))
-    .get();
+    .where(eq(notifications.id, notificationId))) as any[];
+  const row = rows[0];
   if (!row) return;
   assertSelfOrAdmin(actor, row.userId);
-  db.update(notifications)
+  await db
+    .update(notifications)
     .set({ readAt: new Date().toISOString() })
-    .where(eq(notifications.id, notificationId))
-    .run();
+    .where(eq(notifications.id, notificationId));
 }

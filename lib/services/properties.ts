@@ -23,7 +23,10 @@ export async function listProperties(status?: string) {
 
 export async function getProperty(id: string) {
   const db = getDb();
-  const rows = (await db.select().from(properties).where(eq(properties.id, id))) as any[];
+  const rows = (await db
+    .select()
+    .from(properties)
+    .where(eq(properties.id, id))) as any[];
   return rows[0];
 }
 
@@ -34,15 +37,21 @@ export async function listFeatured(limit = 6) {
     .from(properties)
     .orderBy(desc(properties.createdAt))) as any[];
   return rows
-    .filter((p: any) => p.featured && (p.status === "live" || p.status === "funded"))
+    .filter(
+      (p: any) =>
+        p.featured && (p.status === "live" || p.status === "funded"),
+    )
     .slice(0, limit);
 }
 
 export async function listAllAdmin(actorId: string) {
-  const actor = loadActor(actorId);
+  const actor = await loadActor(actorId);
   assertAdmin(actor);
   const db = getDb();
-  return (await db.select().from(properties).orderBy(desc(properties.createdAt))) as any[];
+  return (await db
+    .select()
+    .from(properties)
+    .orderBy(desc(properties.createdAt))) as any[];
 }
 
 export type PropertyInput = {
@@ -58,11 +67,18 @@ export type PropertyInput = {
 };
 
 export async function createProperty(actorId: string, input: PropertyInput) {
-  const actor = loadActor(actorId);
+  const actor = await loadActor(actorId);
   assertAdmin(actor);
 
-  if (!input.name?.trim() || !input.location?.trim() || !input.description?.trim()) {
-    throw new AppError("VALIDATION", "Name, location, and description are required");
+  if (
+    !input.name?.trim() ||
+    !input.location?.trim() ||
+    !input.description?.trim()
+  ) {
+    throw new AppError(
+      "VALIDATION",
+      "Name, location, and description are required",
+    );
   }
   if (input.targetRaiseCents <= 0) {
     throw new AppError("VALIDATION", "Target raise must be positive");
@@ -75,23 +91,22 @@ export async function createProperty(actorId: string, input: PropertyInput) {
   const id = randomUUID();
   const createdAt = nowIso();
 
-  await db.insert(properties)
-    .values({
-      id,
-      name: input.name.trim(),
-      location: input.location.trim(),
-      description: input.description.trim(),
-      imageUrl: input.imageUrl?.trim() || null,
-      targetRaiseCents: input.targetRaiseCents,
-      raisedCents: input.raisedCents ?? 0,
-      status: input.status ?? "live",
-      expectedApyBps: input.expectedApyBps,
-      featured: input.featured ?? true,
-      createdAt,
-      updatedAt: createdAt,
-    });
+  await db.insert(properties).values({
+    id,
+    name: input.name.trim(),
+    location: input.location.trim(),
+    description: input.description.trim(),
+    imageUrl: input.imageUrl?.trim() || null,
+    targetRaiseCents: input.targetRaiseCents,
+    raisedCents: input.raisedCents ?? 0,
+    status: input.status ?? "live",
+    expectedApyBps: input.expectedApyBps,
+    featured: input.featured ?? true,
+    createdAt,
+    updatedAt: createdAt,
+  });
 
-  logEvent({
+  await logEvent({
     actorId: actor.id,
     action: "property.create",
     resourceType: "property",
@@ -106,14 +121,15 @@ export async function updateProperty(
   propertyId: string,
   input: Partial<PropertyInput>,
 ) {
-  const actor = loadActor(actorId);
+  const actor = await loadActor(actorId);
   assertAdmin(actor);
   const db = getDb();
   const existing = await getProperty(propertyId);
   if (!existing) throw new AppError("NOT_FOUND", "Property not found", 404);
 
   const updatedAt = nowIso();
-  await db.update(properties)
+  await db
+    .update(properties)
     .set({
       name: input.name?.trim() ?? existing.name,
       location: input.location?.trim() ?? existing.location,
@@ -131,7 +147,7 @@ export async function updateProperty(
     })
     .where(eq(properties.id, propertyId));
 
-  logEvent({
+  await logEvent({
     actorId: actor.id,
     action: "property.update",
     resourceType: "property",
@@ -142,10 +158,13 @@ export async function updateProperty(
 }
 
 export async function deleteProperty(actorId: string, propertyId: string) {
-  const actor = loadActor(actorId);
+  const actor = await loadActor(actorId);
   assertAdmin(actor);
   const existing = await getProperty(propertyId);
   if (!existing) throw new AppError("NOT_FOUND", "Property not found", 404);
   // Soft-close rather than hard delete to preserve investment FKs
-  return await updateProperty(actorId, propertyId, { status: "closed", featured: false });
+  return await updateProperty(actorId, propertyId, {
+    status: "closed",
+    featured: false,
+  });
 }

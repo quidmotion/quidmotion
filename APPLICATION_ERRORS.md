@@ -5,7 +5,8 @@
 - **GitHub Repository**: `https://github.com/quidmotion/quidmotion.git`
 - **Vercel Live URL**: `https://quidmotion-flame.vercel.app/`
 - **Vercel Build Status**: **Build succeeds cleanly** (no TypeScript or compilation errors).
-- **Runtime Status**: Visiting certain live URLs triggers a Vercel 500 Server-Side Exception (`Application error: a server-side exception has occurred while loading quidmotion-flame.vercel.app...`).
+- **Runtime Status (pre-fix)**: Visiting certain live URLs triggers a Vercel 500 Server-Side Exception (`Application error: a server-side exception has occurred while loading quidmotion-flame.vercel.app...`).
+- **Runtime Status (post-fix)**: Root cause fixed in code (await all Postgres queries). **Redeploy required** for live site to pick up changes.
 
 ---
 
@@ -27,14 +28,14 @@
    - Digest: `2691262776`
 8. **Admin Audit** (`/admin/audit`):
    - Digest: `3461416234`
-9. **Working Tabs without Errors**:
+9. **Working Tabs without Errors** (pre-fix):
    - `/admin` (Overview)
    - `/admin/plans`
-   - `/admin/content`
+   - `/admin/content` (partially — fell back to hardcoded doc titles)
 
 ---
 
-## 🛠️ Work Completed So Far
+## 🛠️ Work Completed So Far (prior agents)
 
 1. **Database Adapter & Polyfills** (`lib/db/adapters/supabase.ts`):
    - Added `parsePgOptions()` to handle connection strings with special characters (`@`, `#`, `%`).
@@ -43,19 +44,73 @@
    - Set `export const dynamic = "force-dynamic";` across all 23 database-driven page routes.
 3. **Database Schema Sync**:
    - Added missing `lockup_days` column to the Supabase PostgreSQL `users` table via `ALTER TABLE users ADD COLUMN IF NOT EXISTS lockup_days integer DEFAULT 90;`.
-4. **Async Service Migration**:
-   - Converted core database service functions (`lib/services/*.ts`) and authentication (`lib/auth/adapters/local.ts`) from synchronous SQLite queries to `async/await`.
-   - Updated Next.js Server Components across `app/(marketing)/*`, `app/admin/*`, and `app/dashboard/*` to `await` data queries.
+4. **Async Service Migration (partial)**:
+   - Converted some core database service functions and authentication from synchronous SQLite queries to `async/await`.
 
 ---
 
-## 🚨 Instructions for the Next Agent
+## ✅ Root Cause Found & Fixed (this agent)
 
-1. **Inspect Vercel Server Logs Directly**:
-   - Access the Vercel project logs or run `npx vercel logs` / inspect Vercel function runtime logs to get the full stack trace for Digests `3793776720`, `948888730`, `2643061870`, `3794756983`, `811967268`, `3700738928`, `2691262776`, `3461416234`.
-2. **Check Auth Session Deserialization & Middleware**:
-   - Audit `lib/auth/index.ts`, `middleware.ts`, and `lib/auth/adapters/local.ts` to ensure session cookies and claims deserialize properly when running under Vercel Edge/Serverless environments.
-3. **Verify Drizzle Table Schemas vs. Supabase PostgreSQL Tables**:
-   - Verify if any other columns or table references in `lib/db/schema/schema.sqlite.ts` mismatch the Supabase PostgreSQL table structure.
-4. **Check Connection Pooling / SSL Settings**:
-   - Ensure the Supabase database connection string uses transaction pooler mode (port `6543`) or session pooler mode (port `5432`) with appropriate SSL parameters for serverless Lambdas.
+### Diagnosis
+
+Vercel CLI logs were unavailable in this environment (CLI hang / not linked). Static analysis of working vs failing routes identified the crash pattern:
+
+| Working routes | Why they worked |
+|---|---|
+| `/admin` | `getAdminOverview()` already used `await db.select()...` |
+| `/admin/plans` | `listPlans()` already used proper async selects; no `loadActor` |
+| `/admin/content` | `listDocuments()` used `.get()` but fell back to hardcoded titles when the Promise was not a row |
+
+| Failing routes | Why they 500'd |
+|---|---|
+| `/dashboard`, `/admin/users`, `/admin/kyc`, `/admin/deposits`, `/admin/payouts`, `/admin/properties`, `/admin/settings`, `/admin/audit` | Called `loadActor()` or other helpers that used **SQLite-style `.get()` / `.all()` / `.run()` without `await`** |
+
+On Postgres (`drizzle-orm/postgres-js`):
+
+1. **`loadActor`** did `db.select()....get()` and treated the result as a row. With the polyfill, `.get()` returns a **Promise**. Promises are truthy, so `row.id` / `row.role` were `undefined` → `assertAdmin` / `assertSelfOrAdmin` threw → uncaught `AppError` → Next.js 500 digests.
+2. **`listDefaultPortfolioRates` / `listEmailOutbox` / `listAdminWithdrawals`** used `.all()` (polyfill returned the thenable) then called `.map` / `.slice` on a non-array → `TypeError`.
+3. Inserts/updates with bare `.run()` never actually waited for completion on Postgres.
+
+The polyfill was a band-aid and **unsafe when callers do not await**. Correct fix: real `async/await` everywhere.
+
+### Auth / middleware audit
+
+- `middleware.ts`: edge-safe sealed JWT only — OK.
+- `lib/auth/adapters/local.ts`: session resolution already uses `await db.select()...` — OK.
+- Layouts call `getAuth().getSession()` correctly — OK.
+- Failures were **after** auth, inside service-layer actor loads and queries.
+
+### Schema vs Supabase
+
+- No additional missing-column evidence beyond prior `lockup_days` fix.
+- Working pages already queried the same tables (`users`, `kyc_submissions`, `payouts`, `transactions`) with proper await, so schema drift was not the primary crash.
+
+### Connection pooling / SSL
+
+Updated `lib/db/adapters/supabase.ts`:
+
+- `ssl: "require"`
+- `prepare: false` (required for Supabase PgBouncer / transaction pooler)
+- Serverless-friendly pool: `max: 1`, `idle_timeout: 20`, `connect_timeout: 10`, `max_lifetime: 300`
+- Removed the unreliable `patchDrizzlePostgres` polyfill (no longer needed)
+
+**Recommended `DATABASE_URL` on Vercel**: Supabase **transaction pooler** (`…pooler.supabase.com:6543`) or session pooler (`:5432`) with SSL. Prefer the pooler host, not the direct DB host, for serverless.
+
+### Code changes (this agent)
+
+- Made `loadActor` async; all service callers `await loadActor(...)`.
+- Converted remaining services off `.get()` / `.all()` / `.run()`:
+  - `_authz`, `audit`, `users`, `kyc`, `payouts`, `crypto`, `email`, `growth`, `notifications`, `transactions`, `documents`, `leads`, `settings`, `properties`, `investments`, `referrals`
+- Fixed pages/actions that called async helpers without `await` (admin settings/users/content, documents marketing pages, dashboard transactions, admin actions, lockup action, cron growth route).
+- `npm run typecheck` passes (0 errors).
+
+---
+
+## 🚨 Next steps for deploy
+
+1. **Commit & push** these changes, then redeploy on Vercel (or `npx vercel --prod` if linked).
+2. Confirm Vercel env vars: `DB_PROVIDER=supabase`, `AUTH_PROVIDER=local`, `DATABASE_URL` (pooler URL + SSL), `SESSION_SECRET` / seal secret used by `lib/auth/sealed.ts`.
+3. Smoke-test authenticated routes after deploy:
+   - `/dashboard`
+   - `/admin/users`, `/admin/kyc`, `/admin/deposits`, `/admin/payouts`, `/admin/properties`, `/admin/settings`, `/admin/audit`
+4. If any digest remains, pull **Runtime Logs** in the Vercel dashboard for that deployment (CLI was unreliable here) and match the stack to the route.

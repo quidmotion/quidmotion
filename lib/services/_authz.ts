@@ -41,9 +41,13 @@ export function assertKycApproved(actor: AuthUser): void {
 }
 
 /** Load fresh user row for service calls (role/status/kyc may have changed). */
-export function loadActor(actorId: string): AuthUser {
+export async function loadActor(actorId: string): Promise<AuthUser> {
   const db = getDb();
-  const row = db.select().from(users).where(eq(users.id, actorId)).get();
+  const rows = (await db
+    .select()
+    .from(users)
+    .where(eq(users.id, actorId))) as any[];
+  const row = rows[0];
   if (!row) throw new AppError("UNAUTHORIZED", "User not found", 401);
   return {
     id: row.id,

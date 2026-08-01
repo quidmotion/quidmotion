@@ -6,7 +6,12 @@ import { eq, desc } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { kycSubmissions, users } from "@/lib/db/schema";
 import { AppError } from "@/lib/errors";
-import { assertActive, assertAdmin, assertSelfOrAdmin, loadActor } from "./_authz";
+import {
+  assertActive,
+  assertAdmin,
+  assertSelfOrAdmin,
+  loadActor,
+} from "./_authz";
 import { notifyKycStatus } from "./email";
 import { logEvent } from "./audit";
 
@@ -54,7 +59,7 @@ export function resolveUploadPath(relativePath: string): string | null {
 }
 
 export async function submit(actorId: string, input: KycSubmitInput) {
-  const actor = loadActor(actorId);
+  const actor = await loadActor(actorId);
   assertActive(actor);
 
   if (actor.kycStatus === "approved") {
@@ -85,27 +90,25 @@ export async function submit(actorId: string, input: KycSubmitInput) {
   const id = randomUUID();
   const createdAt = nowIso();
 
-  db.insert(kycSubmissions)
-    .values({
-      id,
-      userId: actor.id,
-      status: "pending",
-      fullLegalName: input.fullLegalName.trim(),
-      dateOfBirth: input.dateOfBirth.trim(),
-      country: input.country.trim(),
-      documentType: input.documentType.trim(),
-      documentNumber: input.documentNumber.trim(),
-      documentPaths: JSON.stringify(input.documentPaths),
-      createdAt,
-    })
-    .run();
+  await db.insert(kycSubmissions).values({
+    id,
+    userId: actor.id,
+    status: "pending",
+    fullLegalName: input.fullLegalName.trim(),
+    dateOfBirth: input.dateOfBirth.trim(),
+    country: input.country.trim(),
+    documentType: input.documentType.trim(),
+    documentNumber: input.documentNumber.trim(),
+    documentPaths: JSON.stringify(input.documentPaths),
+    createdAt,
+  });
 
-  db.update(users)
+  await db
+    .update(users)
     .set({ kycStatus: "pending", updatedAt: createdAt })
-    .where(eq(users.id, actor.id))
-    .run();
+    .where(eq(users.id, actor.id));
 
-  logEvent({
+  await logEvent({
     actorId: actor.id,
     action: "kyc.submit",
     resourceType: "kyc_submission",
@@ -114,11 +117,15 @@ export async function submit(actorId: string, input: KycSubmitInput) {
 
   await notifyKycStatus(actor.id, "submitted");
 
-  return db.select().from(kycSubmissions).where(eq(kycSubmissions.id, id)).get()!;
+  const createdRows = (await db
+    .select()
+    .from(kycSubmissions)
+    .where(eq(kycSubmissions.id, id))) as any[];
+  return createdRows[0]!;
 }
 
 export async function getLatestForUser(actorId: string, userId: string) {
-  const actor = loadActor(actorId);
+  const actor = await loadActor(actorId);
   assertSelfOrAdmin(actor, userId);
   const db = getDb();
   const rows = (await db
@@ -130,7 +137,7 @@ export async function getLatestForUser(actorId: string, userId: string) {
 }
 
 export async function listQueue(actorId: string) {
-  const actor = loadActor(actorId);
+  const actor = await loadActor(actorId);
   assertAdmin(actor);
   const db = getDb();
   return (await db
@@ -141,7 +148,7 @@ export async function listQueue(actorId: string) {
 }
 
 export async function listAll(actorId: string, limit = 100) {
-  const actor = loadActor(actorId);
+  const actor = await loadActor(actorId);
   assertAdmin(actor);
   const db = getDb();
   const rows = (await db
@@ -152,7 +159,7 @@ export async function listAll(actorId: string, limit = 100) {
 }
 
 export async function getSubmission(actorId: string, submissionId: string) {
-  const actor = loadActor(actorId);
+  const actor = await loadActor(actorId);
   assertAdmin(actor);
   const db = getDb();
   const rows = (await db
@@ -161,7 +168,10 @@ export async function getSubmission(actorId: string, submissionId: string) {
     .where(eq(kycSubmissions.id, submissionId))) as any[];
   const row = rows[0];
   if (!row) throw new AppError("NOT_FOUND", "Submission not found", 404);
-  const userRows = (await db.select().from(users).where(eq(users.id, row.userId))) as any[];
+  const userRows = (await db
+    .select()
+    .from(users)
+    .where(eq(users.id, row.userId))) as any[];
   const user = userRows[0];
   return {
     ...row,
@@ -177,7 +187,7 @@ export async function review(
   decision: "approved" | "rejected",
   note?: string,
 ) {
-  const actor = loadActor(actorId);
+  const actor = await loadActor(actorId);
   assertAdmin(actor);
   const db = getDb();
   const rows = (await db
@@ -190,7 +200,8 @@ export async function review(
     throw new AppError("INVALID_STATE", "Already reviewed");
   }
   const now = nowIso();
-  await db.update(kycSubmissions)
+  await db
+    .update(kycSubmissions)
     .set({
       status: decision,
       reviewerNote: note,
@@ -198,11 +209,12 @@ export async function review(
       reviewedAt: now,
     })
     .where(eq(kycSubmissions.id, submissionId));
-  await db.update(users)
+  await db
+    .update(users)
     .set({ kycStatus: decision, updatedAt: now })
     .where(eq(users.id, row.userId));
 
-  logEvent({
+  await logEvent({
     actorId: actor.id,
     action: `kyc.${decision}`,
     resourceType: "kyc_submission",

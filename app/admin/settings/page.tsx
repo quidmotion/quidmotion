@@ -22,10 +22,10 @@ export default async function AdminSettingsPage() {
   const session = await getAuth().getSession();
   const wallets = await getDepositWallets();
   const emails = await getOfficialEmails();
-  const rates = listDefaultPortfolioRates();
-  const mults = getLockupMultipliers();
+  const rates = await listDefaultPortfolioRates();
+  const mults = await getLockupMultipliers();
   const prices = await listRecentPrices();
-  const outbox = listEmailOutbox(session!.user.id, 15);
+  const outbox = await listEmailOutbox(session!.user.id, 15);
 
   return (
     <div className="space-y-6">

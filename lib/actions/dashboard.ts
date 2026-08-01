@@ -164,7 +164,7 @@ export async function submitKycAction(formData: FormData): Promise<Result> {
 
 export async function leadCaptureAction(email: string): Promise<Result> {
   try {
-    leads.captureLead(email, "guide");
+    await leads.captureLead(email, "guide");
     return { ok: true };
   } catch (e) {
     return fail(e);

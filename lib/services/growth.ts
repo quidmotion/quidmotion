@@ -5,7 +5,6 @@ import { getDb } from "@/lib/db";
 import {
   defaultPortfolioRates,
   userInvestments,
-  investmentPlans,
   portfolioValueSnapshots,
   userBalances,
   users,
@@ -19,11 +18,24 @@ import { setSetting } from "./settings";
 const HOURS_PER_YEAR = 365 * 24;
 
 /** Fetch dynamic Lock-up → share of Default Portfolio Growth APY. */
-export function getLockupMultipliers(): Record<number, number> {
+export async function getLockupMultipliers(): Promise<Record<number, number>> {
   const db = getDb();
-  const m90 = db.select().from(platformSettings).where(eq(platformSettings.key, "lockup_mult_90")).get();
-  const m180 = db.select().from(platformSettings).where(eq(platformSettings.key, "lockup_mult_180")).get();
-  const m365 = db.select().from(platformSettings).where(eq(platformSettings.key, "lockup_mult_365")).get();
+  const m90Rows = (await db
+    .select()
+    .from(platformSettings)
+    .where(eq(platformSettings.key, "lockup_mult_90"))) as any[];
+  const m180Rows = (await db
+    .select()
+    .from(platformSettings)
+    .where(eq(platformSettings.key, "lockup_mult_180"))) as any[];
+  const m365Rows = (await db
+    .select()
+    .from(platformSettings)
+    .where(eq(platformSettings.key, "lockup_mult_365"))) as any[];
+
+  const m90 = m90Rows[0];
+  const m180 = m180Rows[0];
+  const m365 = m365Rows[0];
 
   return {
     90: m90 ? Number(m90.value) : 0.33,
@@ -32,8 +44,8 @@ export function getLockupMultipliers(): Record<number, number> {
   };
 }
 
-export function lockupMultiplier(lockupDays: number): number {
-  const mults = getLockupMultipliers();
+export async function lockupMultiplier(lockupDays: number): Promise<number> {
+  const mults = await getLockupMultipliers();
   if (mults[lockupDays] !== undefined) {
     return mults[lockupDays];
   }
@@ -54,9 +66,9 @@ function randomInt(min: number, max: number) {
  * Refresh default portfolio APY for each size tier (random within band).
  * Call once per hour (cron or lazy check).
  */
-export function refreshDefaultPortfolioRates(force = false) {
+export async function refreshDefaultPortfolioRates(force = false) {
   const db = getDb();
-  const rows = db.select().from(defaultPortfolioRates).all();
+  const rows = (await db.select().from(defaultPortfolioRates)) as any[];
   const now = Date.now();
   const updated: typeof rows = [];
 
@@ -69,18 +81,18 @@ export function refreshDefaultPortfolioRates(force = false) {
     }
     const next = randomInt(row.apyMinBps, row.apyMaxBps);
     const ts = nowIso();
-    db.update(defaultPortfolioRates)
+    await db
+      .update(defaultPortfolioRates)
       .set({ currentApyBps: next, updatedAt: ts })
-      .where(eq(defaultPortfolioRates.tier, row.tier))
-      .run();
+      .where(eq(defaultPortfolioRates.tier, row.tier));
     updated.push({ ...row, currentApyBps: next, updatedAt: ts });
   }
   return updated;
 }
 
-export function listDefaultPortfolioRates() {
-  refreshDefaultPortfolioRates(false);
-  return getDb().select().from(defaultPortfolioRates).all();
+export async function listDefaultPortfolioRates() {
+  await refreshDefaultPortfolioRates(false);
+  return (await getDb().select().from(defaultPortfolioRates)) as any[];
 }
 
 /**
@@ -91,8 +103,10 @@ export function listDefaultPortfolioRates() {
  *  - >= $10,000              → 60–70%
  * Below $500: no growth (0).
  */
-export function resolveDefaultApyBps(totalInvestedCents: number): number {
-  const rates = listDefaultPortfolioRates();
+export async function resolveDefaultApyBps(
+  totalInvestedCents: number,
+): Promise<number> {
+  const rates = await listDefaultPortfolioRates();
   if (totalInvestedCents < 50_000) return 0;
 
   // Prefer exact tier match by min/max
@@ -131,7 +145,7 @@ export async function totalActiveInvestedCents(userId: string): Promise<number> 
  * Yield is added to available cash (realized growth) and tracked on roiToDateCents.
  */
 export async function accrueUserGrowth(userId: string) {
-  refreshDefaultPortfolioRates(false);
+  await refreshDefaultPortfolioRates(false);
   const db = getDb();
   const investments = (await db
     .select()
@@ -144,23 +158,39 @@ export async function accrueUserGrowth(userId: string) {
     )) as any[];
 
   if (investments.length === 0) {
-    return { accruedCents: 0, investments: [] as { id: string; yieldCents: number; effectiveApyBps: number }[] };
+    return {
+      accruedCents: 0,
+      investments: [] as {
+        id: string;
+        yieldCents: number;
+        effectiveApyBps: number;
+      }[],
+    };
   }
 
-  const totalInvested = investments.reduce((s: number, i: any) => s + i.principalCents, 0);
-  const defaultApyBps = resolveDefaultApyBps(totalInvested);
+  const totalInvested = investments.reduce(
+    (s: number, i: any) => s + i.principalCents,
+    0,
+  );
+  const defaultApyBps = await resolveDefaultApyBps(totalInvested);
   const now = Date.now();
   let totalYield = 0;
-  const details: { id: string; yieldCents: number; effectiveApyBps: number }[] = [];
+  const details: {
+    id: string;
+    yieldCents: number;
+    effectiveApyBps: number;
+  }[] = [];
 
-  const userRows = (await db.select().from(users).where(eq(users.id, userId))) as any[];
+  const userRows = (await db
+    .select()
+    .from(users)
+    .where(eq(users.id, userId))) as any[];
   const userRow = userRows[0];
   const userLockupDays = userRow?.lockupDays ?? 90;
-  const mult = lockupMultiplier(userLockupDays);
+  const mult = await lockupMultiplier(userLockupDays);
   const effectiveApyBps = Math.round(defaultApyBps * mult);
 
   for (const inv of investments) {
-
     const last = inv.lastAccruedAt
       ? new Date(inv.lastAccruedAt).getTime()
       : new Date(inv.startedAt).getTime();
@@ -172,7 +202,8 @@ export async function accrueUserGrowth(userId: string) {
     if (wholeHours <= 0 || effectiveApyBps <= 0) {
       // Still stamp effective APY for UI
       if (inv.effectiveApyBps !== effectiveApyBps) {
-        await db.update(userInvestments)
+        await db
+          .update(userInvestments)
           .set({ effectiveApyBps })
           .where(eq(userInvestments.id, inv.id));
       }
@@ -185,9 +216,12 @@ export async function accrueUserGrowth(userId: string) {
       inv.principalCents * apy * (wholeHours / HOURS_PER_YEAR),
     );
 
-    const accruedAt = new Date(last + wholeHours * 60 * 60 * 1000).toISOString();
+    const accruedAt = new Date(
+      last + wholeHours * 60 * 60 * 1000,
+    ).toISOString();
 
-    await db.update(userInvestments)
+    await db
+      .update(userInvestments)
       .set({
         roiToDateCents: inv.roiToDateCents + yieldCents,
         lastAccruedAt: accruedAt,
@@ -198,7 +232,8 @@ export async function accrueUserGrowth(userId: string) {
     if (yieldCents > 0) {
       // Credit yield to available balance (growth is withdrawable after credit)
       const bal = await getBalances(userId);
-      await db.update(userBalances)
+      await db
+        .update(userBalances)
         .set({
           availableCents: bal.availableCents + yieldCents,
           updatedAt: nowIso(),
@@ -220,30 +255,33 @@ export async function accrueUserGrowth(userId: string) {
   // Portfolio = available + locked principal (roi already moved to available)
   const valueCents = bal.availableCents + bal.lockedCents;
   void roi;
-  await db.insert(portfolioValueSnapshots)
-    .values({
-      id: randomUUID(),
-      userId,
-      asOf: nowIso(),
-      valueCents,
-    });
+  await db.insert(portfolioValueSnapshots).values({
+    id: randomUUID(),
+    userId,
+    asOf: nowIso(),
+    valueCents,
+  });
 
   return { accruedCents: totalYield, investments: details, defaultApyBps };
 }
 
 /** Accrue growth for every user with active investments (hourly job). */
 export async function accrueAllUsersGrowth() {
-  refreshDefaultPortfolioRates(true);
+  await refreshDefaultPortfolioRates(true);
   const db = getDb();
   const all = (await db
     .select({ userId: userInvestments.userId })
     .from(userInvestments)
-    .where(inArray(userInvestments.status, ["active", "maturing"]))) as any[];
+    .where(
+      inArray(userInvestments.status, ["active", "maturing"]),
+    )) as any[];
   const unique = [...new Set(all.map((r: any) => r.userId as string))];
-  const results = await Promise.all((unique as string[]).map(async (userId: string) => ({
-    userId,
-    ...(await accrueUserGrowth(userId)),
-  })));
+  const results = await Promise.all(
+    (unique as string[]).map(async (userId: string) => ({
+      userId,
+      ...(await accrueUserGrowth(userId)),
+    })),
+  );
   return {
     usersProcessed: unique.length,
     totalYieldCents: results.reduce((s: number, r: any) => s + r.accruedCents, 0),
@@ -253,9 +291,9 @@ export async function accrueAllUsersGrowth() {
 
 export async function describeGrowthForUser(userId: string) {
   const totalInvested = await totalActiveInvestedCents(userId);
-  const defaultApyBps = resolveDefaultApyBps(totalInvested);
-  const rates = listDefaultPortfolioRates();
-  const mults = getLockupMultipliers();
+  const defaultApyBps = await resolveDefaultApyBps(totalInvested);
+  const rates = await listDefaultPortfolioRates();
+  const mults = await getLockupMultipliers();
   return {
     totalInvestedCents: totalInvested,
     defaultApyBps,
@@ -269,32 +307,52 @@ export async function describeGrowthForUser(userId: string) {
       updatedAt: r.updatedAt,
     })),
     lockupMultipliers: [
-      { days: 90, multiplier: mults[90], label: `${Math.round(mults[90] * 100)}% of default APY` },
-      { days: 180, multiplier: mults[180], label: `${Math.round(mults[180] * 100)}% of default APY` },
-      { days: 365, multiplier: mults[365], label: `${Math.round(mults[365] * 100)}% of default APY` },
+      {
+        days: 90,
+        multiplier: mults[90],
+        label: `${Math.round(mults[90] * 100)}% of default APY`,
+      },
+      {
+        days: 180,
+        multiplier: mults[180],
+        label: `${Math.round(mults[180] * 100)}% of default APY`,
+      },
+      {
+        days: 365,
+        multiplier: mults[365],
+        label: `${Math.round(mults[365] * 100)}% of default APY`,
+      },
     ],
   };
 }
 
-export function recalculateAllInvestmentsApy() {
+export async function recalculateAllInvestmentsApy() {
   const db = getDb();
-  const activeUsers = db
+  const activeUsers = (await db
     .select({ userId: userInvestments.userId })
     .from(userInvestments)
-    .where(inArray(userInvestments.status, ["active", "maturing"]))
-    .all();
-  const uniqueUserIds = [...new Set(activeUsers.map((u: any) => u.userId as string))];
+    .where(
+      inArray(userInvestments.status, ["active", "maturing"]),
+    )) as any[];
+  const uniqueUserIds = [
+    ...new Set(activeUsers.map((u: any) => u.userId as string)),
+  ];
   for (const uid of uniqueUserIds as string[]) {
-    accrueUserGrowth(uid);
+    await accrueUserGrowth(uid);
   }
 }
 
-export function updateApyRules(
+export async function updateApyRules(
   actorId: string,
-  tiers: { tier: string; currentApyPct: number; minApyPct: number; maxApyPct: number }[],
+  tiers: {
+    tier: string;
+    currentApyPct: number;
+    minApyPct: number;
+    maxApyPct: number;
+  }[],
   lockups: { days: number; multiplierPct: number }[],
 ) {
-  const actor = loadActor(actorId);
+  const actor = await loadActor(actorId);
   assertAdmin(actor);
   const db = getDb();
   const now = nowIso();
@@ -303,17 +361,17 @@ export function updateApyRules(
     const currentApyBps = Math.round(t.currentApyPct * 100);
     const apyMinBps = Math.round(t.minApyPct * 100);
     const apyMaxBps = Math.round(t.maxApyPct * 100);
-    db.update(defaultPortfolioRates)
+    await db
+      .update(defaultPortfolioRates)
       .set({ currentApyBps, apyMinBps, apyMaxBps, updatedAt: now })
-      .where(eq(defaultPortfolioRates.tier, t.tier))
-      .run();
+      .where(eq(defaultPortfolioRates.tier, t.tier));
   }
 
   for (const l of lockups) {
     const key = `lockup_mult_${l.days}`;
     const value = String(l.multiplierPct / 100);
-    setSetting(actorId, key, value);
+    await setSetting(actorId, key, value);
   }
 
-  recalculateAllInvestmentsApy();
+  await recalculateAllInvestmentsApy();
 }

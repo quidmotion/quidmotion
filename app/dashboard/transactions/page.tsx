@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/Badge";
 export default async function TransactionsPage() {
   const session = await getAuth().getSession();
   if (!session) redirect("/login");
-  const { items } = listTransactions(session.user.id, session.user.id, {
+  const { items } = await listTransactions(session.user.id, session.user.id, {
     pageSize: 50,
   });
 

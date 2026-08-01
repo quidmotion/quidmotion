@@ -107,7 +107,10 @@ async function deliverViaProvider(input: {
   try {
     const dir = path.join(process.cwd(), "data", "emails");
     fs.mkdirSync(dir, { recursive: true });
-    const file = path.join(dir, `${Date.now()}_${input.to.replace(/[^a-z0-9@._-]/gi, "_")}.eml.html`);
+    const file = path.join(
+      dir,
+      `${Date.now()}_${input.to.replace(/[^a-z0-9@._-]/gi, "_")}.eml.html`,
+    );
     fs.writeFileSync(
       file,
       `To: ${input.to}\nFrom: ${input.from}\nSubject: ${input.subject}\n\n${input.html}`,
@@ -139,21 +142,19 @@ export async function enqueueEmail(input: {
   const createdAt = nowIso();
   const db = getDb();
 
-  db.insert(emailOutbox)
-    .values({
-      id,
-      toEmail: input.toEmail,
-      fromEmail: from,
-      subject: input.title,
-      bodyHtml: html,
-      bodyText: input.bodyText,
-      kind: input.kind,
-      status: "pending",
-      meta: input.meta ? JSON.stringify(input.meta) : null,
-      createdAt,
-    })
-    .run();
-  
+  await db.insert(emailOutbox).values({
+    id,
+    toEmail: input.toEmail,
+    fromEmail: from,
+    subject: input.title,
+    bodyHtml: html,
+    bodyText: input.bodyText,
+    kind: input.kind,
+    status: "pending",
+    meta: input.meta ? JSON.stringify(input.meta) : null,
+    createdAt,
+  });
+
   return id;
 }
 
@@ -173,20 +174,18 @@ export async function sendTransactionalEmail(input: {
   const createdAt = nowIso();
   const db = getDb();
 
-  db.insert(emailOutbox)
-    .values({
-      id,
-      toEmail: input.to,
-      fromEmail: from,
-      subject: input.subject,
-      bodyHtml: html,
-      bodyText: input.bodyText,
-      kind: input.kind,
-      status: "pending",
-      meta: input.meta ? JSON.stringify(input.meta) : null,
-      createdAt,
-    })
-    .run();
+  await db.insert(emailOutbox).values({
+    id,
+    toEmail: input.to,
+    fromEmail: from,
+    subject: input.subject,
+    bodyHtml: html,
+    bodyText: input.bodyText,
+    kind: input.kind,
+    status: "pending",
+    meta: input.meta ? JSON.stringify(input.meta) : null,
+    createdAt,
+  });
 
   const result = await deliverViaProvider({
     to: input.to,
@@ -202,21 +201,25 @@ export async function sendTransactionalEmail(input: {
       : "sent"
     : "failed";
 
-  db.update(emailOutbox)
+  await db
+    .update(emailOutbox)
     .set({
       status,
       sentAt: result.ok ? nowIso() : null,
       error: result.error ?? null,
     })
-    .where(eq(emailOutbox.id, id))
-    .run();
+    .where(eq(emailOutbox.id, id));
 
   return { id, status, error: result.error };
 }
 
-function userEmail(userId: string) {
+async function userEmail(userId: string) {
   const db = getDb();
-  return db.select().from(users).where(eq(users.id, userId)).get();
+  const rows = (await db
+    .select()
+    .from(users)
+    .where(eq(users.id, userId))) as any[];
+  return rows[0];
 }
 
 export async function notifyDepositRequested(
@@ -225,7 +228,7 @@ export async function notifyDepositRequested(
   asset: string,
   txRef?: string,
 ) {
-  const user = userEmail(userId);
+  const user = await userEmail(userId);
   if (!user) return;
   const amount = formatUsd(amountCents);
   await sendTransactionalEmail({
@@ -247,7 +250,7 @@ export async function notifyDepositConfirmed(
   amountCents: number,
   asset: string,
 ) {
-  const user = userEmail(userId);
+  const user = await userEmail(userId);
   if (!user) return;
   const amount = formatUsd(amountCents);
   await sendTransactionalEmail({
@@ -269,7 +272,7 @@ export async function notifyInvestmentCreated(
   planName: string,
   lockupDays: number,
 ) {
-  const user = userEmail(userId);
+  const user = await userEmail(userId);
   if (!user) return;
   const amount = formatUsd(amountCents);
   await sendTransactionalEmail({
@@ -290,7 +293,7 @@ export async function notifyWithdrawalRequested(
   amountCents: number,
   address: string,
 ) {
-  const user = userEmail(userId);
+  const user = await userEmail(userId);
   if (!user) return;
   const amount = formatUsd(amountCents);
   await sendTransactionalEmail({
@@ -312,7 +315,7 @@ export async function notifyWithdrawalCompleted(
   amountCents: number,
   address: string,
 ) {
-  const user = userEmail(userId);
+  const user = await userEmail(userId);
   if (!user) return;
   const amount = formatUsd(amountCents);
   await sendTransactionalEmail({
@@ -334,7 +337,7 @@ export async function notifyKycStatus(
   status: "submitted" | "approved" | "rejected",
   note?: string,
 ) {
-  const user = userEmail(userId);
+  const user = await userEmail(userId);
   if (!user) return;
   if (status === "submitted") {
     await sendTransactionalEmail({
@@ -374,14 +377,13 @@ export async function notifyKycStatus(
   });
 }
 
-export function listEmailOutbox(actorId: string, limit = 50) {
-  const actor = loadActor(actorId);
+export async function listEmailOutbox(actorId: string, limit = 50) {
+  const actor = await loadActor(actorId);
   assertAdmin(actor);
   const db = getDb();
-  return db
+  const rows = (await db
     .select()
     .from(emailOutbox)
-    .orderBy(desc(emailOutbox.createdAt))
-    .all()
-    .slice(0, limit);
+    .orderBy(desc(emailOutbox.createdAt))) as any[];
+  return rows.slice(0, limit);
 }

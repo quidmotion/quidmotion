@@ -24,7 +24,7 @@ export async function updateLockup(userId: string, newDays: typeof LOCKUP_OPTION
   await db.update(users).set({ lockupDays: newDays }).where(eq(users.id, userId));
   
   // Instantly update effective APY for all active positions for this user
-  accrueUserGrowth(userId);
+  await accrueUserGrowth(userId);
   revalidatePath("/dashboard/investments");
   revalidatePath("/dashboard");
 }

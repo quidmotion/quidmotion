@@ -29,30 +29,31 @@ export async function getSetting(key: string): Promise<string | null> {
   return rows[0]?.value ?? null;
 }
 
-export async function getSettingOrDefault(key: string, fallback: string): Promise<string> {
+export async function getSettingOrDefault(
+  key: string,
+  fallback: string,
+): Promise<string> {
   const val = await getSetting(key);
   return val ?? fallback;
 }
 
-export async function setSetting(
-  actorId: string,
-  key: string,
-  value: string,
-) {
-  const actor = loadActor(actorId);
+export async function setSetting(actorId: string, key: string, value: string) {
+  const actor = await loadActor(actorId);
   assertAdmin(actor);
   const db = getDb();
   const now = nowIso();
   const existing = await getSetting(key);
   if (existing !== null) {
-    await db.update(platformSettings)
+    await db
+      .update(platformSettings)
       .set({ value, updatedAt: now, updatedBy: actor.id })
       .where(eq(platformSettings.key, key));
   } else {
-    await db.insert(platformSettings)
+    await db
+      .insert(platformSettings)
       .values({ key, value, updatedAt: now, updatedBy: actor.id });
   }
-  logEvent({
+  await logEvent({
     actorId: actor.id,
     action: "settings.update",
     resourceType: "platform_settings",
@@ -73,17 +74,16 @@ export async function setSettings(
 }
 
 export async function getDepositWallets() {
-  return Promise.all(DEPOSIT_ASSETS.map(async (asset: any) => ({
-    asset,
-    address: await getSettingOrDefault(
-      SETTING_KEYS.depositWallet(asset),
-      "",
-    ),
-    network: await getSettingOrDefault(
-      SETTING_KEYS.depositNetwork(asset),
-      asset === "BTC" ? "Bitcoin" : "Ethereum",
-    ),
-  })));
+  return Promise.all(
+    DEPOSIT_ASSETS.map(async (asset: any) => ({
+      asset,
+      address: await getSettingOrDefault(SETTING_KEYS.depositWallet(asset), ""),
+      network: await getSettingOrDefault(
+        SETTING_KEYS.depositNetwork(asset),
+        asset === "BTC" ? "Bitcoin" : "Ethereum",
+      ),
+    })),
+  );
 }
 
 export async function getOfficialEmails() {
@@ -107,7 +107,7 @@ export async function updateDepositWallets(
   actorId: string,
   wallets: { asset: string; address: string; network?: string }[],
 ) {
-  const actor = loadActor(actorId);
+  const actor = await loadActor(actorId);
   assertAdmin(actor);
   for (const w of wallets) {
     const asset = w.asset.toUpperCase();
@@ -117,9 +117,17 @@ export async function updateDepositWallets(
     if (!w.address?.trim()) {
       throw new AppError("VALIDATION", `${asset} deposit address is required`);
     }
-    await setSetting(actorId, SETTING_KEYS.depositWallet(asset), w.address.trim());
+    await setSetting(
+      actorId,
+      SETTING_KEYS.depositWallet(asset),
+      w.address.trim(),
+    );
     if (w.network?.trim()) {
-      await setSetting(actorId, SETTING_KEYS.depositNetwork(asset), w.network.trim());
+      await setSetting(
+        actorId,
+        SETTING_KEYS.depositNetwork(asset),
+        w.network.trim(),
+      );
     }
   }
   return getDepositWallets();
@@ -129,32 +137,44 @@ export async function updateOfficialEmails(
   actorId: string,
   emails: { contact?: string; support?: string; noreply?: string },
 ) {
-  const actor = loadActor(actorId);
+  const actor = await loadActor(actorId);
   assertAdmin(actor);
   const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (emails.contact !== undefined) {
     if (!emailRe.test(emails.contact)) {
       throw new AppError("VALIDATION", "Invalid contact email");
     }
-    await setSetting(actorId, SETTING_KEYS.emailContact, emails.contact.trim());
+    await setSetting(
+      actorId,
+      SETTING_KEYS.emailContact,
+      emails.contact.trim(),
+    );
   }
   if (emails.support !== undefined) {
     if (!emailRe.test(emails.support)) {
       throw new AppError("VALIDATION", "Invalid support email");
     }
-    await setSetting(actorId, SETTING_KEYS.emailSupport, emails.support.trim());
+    await setSetting(
+      actorId,
+      SETTING_KEYS.emailSupport,
+      emails.support.trim(),
+    );
   }
   if (emails.noreply !== undefined) {
     if (!emailRe.test(emails.noreply)) {
       throw new AppError("VALIDATION", "Invalid no-reply email");
     }
-    await setSetting(actorId, SETTING_KEYS.emailNoreply, emails.noreply.trim());
+    await setSetting(
+      actorId,
+      SETTING_KEYS.emailNoreply,
+      emails.noreply.trim(),
+    );
   }
   return getOfficialEmails();
 }
 
 export async function listAllSettings(actorId: string) {
-  const actor = loadActor(actorId);
+  const actor = await loadActor(actorId);
   assertAdmin(actor);
   const db = getDb();
   return (await db.select().from(platformSettings)) as any[];

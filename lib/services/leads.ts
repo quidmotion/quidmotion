@@ -5,7 +5,7 @@ import { leads } from "@/lib/db/schema";
 import { AppError } from "@/lib/errors";
 import { features } from "@/lib/config/features";
 
-export function captureLead(email: string, source = "guide") {
+export async function captureLead(email: string, source = "guide") {
   if (!features.leadMagnet) {
     throw new AppError("FORBIDDEN", "Lead magnet disabled", 403);
   }
@@ -15,13 +15,11 @@ export function captureLead(email: string, source = "guide") {
   }
   const db = getDb();
   const id = randomUUID();
-  db.insert(leads)
-    .values({
-      id,
-      email: trimmed,
-      source,
-      createdAt: new Date().toISOString(),
-    })
-    .run();
+  await db.insert(leads).values({
+    id,
+    email: trimmed,
+    source,
+    createdAt: new Date().toISOString(),
+  });
   return { id, email: trimmed };
 }

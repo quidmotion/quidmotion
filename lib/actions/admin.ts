@@ -72,7 +72,7 @@ export async function reviewPayoutAction(
     const id = String(formData.get("id"));
     const decision = String(formData.get("decision"));
     if (decision === "approve") {
-      payouts.approve(admin.id, id);
+      await payouts.approve(admin.id, id);
     } else if (decision === "complete") {
       await payouts.completePayout(
         admin.id,
@@ -80,7 +80,7 @@ export async function reviewPayoutAction(
         String(formData.get("note") ?? "") || undefined,
       );
     } else if (decision === "reject") {
-      payouts.reject(
+      await payouts.reject(
         admin.id,
         id,
         String(formData.get("note") ?? "Rejected by admin") || undefined,
@@ -100,7 +100,7 @@ export async function setUserStatusAction(
   try {
     const formData = asFormData(prevOrForm, maybeForm);
     const admin = await requireAdmin();
-    users.setUserStatus(
+    await users.setUserStatus(
       admin.id,
       String(formData.get("userId")),
       String(formData.get("status")) as "active" | "suspended",
@@ -118,7 +118,7 @@ export async function updateDocAction(
   try {
     const formData = asFormData(prevOrForm, maybeForm);
     const admin = await requireAdmin();
-    documents.updateContent(
+    await documents.updateContent(
       admin.id,
       String(formData.get("slug")),
       String(formData.get("body")),
@@ -289,7 +289,7 @@ export async function runGrowthAccrualAction(
 ): Promise<void> {
   try {
     await requireAdmin();
-    growth.accrueAllUsersGrowth();
+    await growth.accrueAllUsersGrowth();
     revalidatePath("/dashboard");
     revalidatePath("/admin/settings");
   } catch (e) {
@@ -304,7 +304,7 @@ export async function updateApyRulesAction(
   try {
     const formData = asFormData(prevOrForm, maybeForm);
     const admin = await requireAdmin();
-    const rates = growth.listDefaultPortfolioRates();
+    const rates = await growth.listDefaultPortfolioRates();
     const tiers = rates.map((r: any) => ({
       tier: r.tier,
       currentApyPct: Number(formData.get(`current_${r.tier}`) ?? r.currentApyBps / 100),
@@ -316,7 +316,7 @@ export async function updateApyRulesAction(
       { days: 180, multiplierPct: Number(formData.get("mult_180") ?? 66) },
       { days: 365, multiplierPct: Number(formData.get("mult_365") ?? 100) },
     ];
-    growth.updateApyRules(admin.id, tiers, lockups);
+    await growth.updateApyRules(admin.id, tiers, lockups);
     revalidatePath("/admin/settings");
     revalidatePath("/dashboard/investments");
     revalidatePath("/dashboard");

@@ -10,7 +10,7 @@ export async function getRewards(actorId: string, userId: string) {
   if (!features.referrals) {
     throw new AppError("FORBIDDEN", "Referrals disabled", 403);
   }
-  const actor = loadActor(actorId);
+  const actor = await loadActor(actorId);
   assertSelfOrAdmin(actor, userId);
   const db = getDb();
   const rewards = (await db
@@ -19,7 +19,10 @@ export async function getRewards(actorId: string, userId: string) {
     .where(eq(referralRewards.userId, userId))
     .orderBy(desc(referralRewards.createdAt))) as any[];
 
-  const userRows = (await db.select().from(users).where(eq(users.id, userId))) as any[];
+  const userRows = (await db
+    .select()
+    .from(users)
+    .where(eq(users.id, userId))) as any[];
   const user = userRows[0];
   const totalCents = rewards.reduce((s: any, r: any) => s + r.amountCents, 0);
   const pendingCents = rewards

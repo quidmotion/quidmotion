@@ -39,23 +39,28 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function cachePrices(rows: { asset: string; priceUsdCents: number; asOf: string }[]) {
+async function cachePrices(
+  rows: { asset: string; priceUsdCents: number; asOf: string }[],
+) {
   const db = getDb();
   for (const r of rows) {
-    db.insert(priceSnapshots)
-      .values({
-        id: randomUUID(),
-        asset: r.asset,
-        priceUsdCents: r.priceUsdCents,
-        asOf: r.asOf,
-      })
-      .run();
+    await db.insert(priceSnapshots).values({
+      id: randomUUID(),
+      asset: r.asset,
+      priceUsdCents: r.priceUsdCents,
+      asOf: r.asOf,
+    });
   }
 }
 
 /** Fetch live USD prices from CoinGecko (no API key required for basic). */
 export async function fetchLivePrices(): Promise<
-  { asset: string; priceUsdCents: number; asOf: string; source: "live" | "fallback" }[]
+  {
+    asset: string;
+    priceUsdCents: number;
+    asOf: string;
+    source: "live" | "fallback";
+  }[]
 > {
   const asOf = nowIso();
   const useLive =
@@ -92,7 +97,7 @@ export async function fetchLivePrices(): Promise<
         source: "live" as const,
       };
     });
-    cachePrices(rows);
+    await cachePrices(rows);
     return rows;
   } catch (e) {
     console.warn("[prices] live fetch failed, using cache/fallback", e);
@@ -162,7 +167,10 @@ export function listSupportedAssets() {
   }));
 }
 
-export async function getDepositAddress(_userId: string | null, asset = "USDT") {
+export async function getDepositAddress(
+  _userId: string | null,
+  asset = "USDT",
+) {
   const key = asset.toUpperCase();
   const wallets = await getDepositWallets();
   const row = wallets.find((w: any) => w.asset === key);
@@ -190,9 +198,14 @@ export async function getAllDepositAddresses() {
 }
 
 /** Convert crypto units to USD cents using latest known prices. */
-export async function toUsdCents(asset: string, units: number): Promise<number> {
+export async function toUsdCents(
+  asset: string,
+  units: number,
+): Promise<number> {
   const key = asset.toUpperCase();
-  const cached = (await listCachedLatestPrices()).find((p: any) => p.asset === key);
+  const cached = (await listCachedLatestPrices()).find(
+    (p: any) => p.asset === key,
+  );
   const price = cached?.priceUsdCents ?? SAFE_FALLBACK[key];
   if (!price) throw new AppError("VALIDATION", `Unsupported asset: ${asset}`);
   if (key === "USDT" || key === "USDC") {
@@ -211,7 +224,7 @@ export async function requestDeposit(
   actorId: string,
   input: { asset: string; amountUsd: number; txRef?: string },
 ) {
-  const actor = loadActor(actorId);
+  const actor = await loadActor(actorId);
   assertActive(actor);
 
   const asset = input.asset.toUpperCase();
@@ -234,24 +247,23 @@ export async function requestDeposit(
   const createdAt = nowIso();
   const txRef = input.txRef?.trim() || `dep_${id.slice(0, 8)}`;
 
-  await db.insert(transactions)
-    .values({
-      id,
-      userId: actor.id,
-      type: "deposit",
-      amountCents,
-      asset,
-      status: "pending",
-      txRef,
-      meta: JSON.stringify({
-        source: "user_report",
-        network: wallet.network,
-        platformAddress: wallet.address,
-      }),
-      createdAt,
-    });
+  await db.insert(transactions).values({
+    id,
+    userId: actor.id,
+    type: "deposit",
+    amountCents,
+    asset,
+    status: "pending",
+    txRef,
+    meta: JSON.stringify({
+      source: "user_report",
+      network: wallet.network,
+      platformAddress: wallet.address,
+    }),
+    createdAt,
+  });
 
-  logEvent({
+  await logEvent({
     actorId: actor.id,
     action: "deposit.request",
     resourceType: "transaction",
@@ -259,7 +271,7 @@ export async function requestDeposit(
     meta: { amountCents, asset, txRef },
   });
 
-  createNotification({
+  await createNotification({
     userId: actor.id,
     title: "Deposit submitted",
     body: `Your ${asset} deposit is pending admin confirmation.`,
@@ -268,7 +280,10 @@ export async function requestDeposit(
 
   await notifyDepositRequested(actor.id, amountCents, asset, txRef);
 
-  const createdRows = (await db.select().from(transactions).where(eq(transactions.id, id))) as any[];
+  const createdRows = (await db
+    .select()
+    .from(transactions)
+    .where(eq(transactions.id, id))) as any[];
   return createdRows[0]!;
 }
 
@@ -292,7 +307,7 @@ export function simulateDepositConfirm(
 }
 
 export async function listUserDeposits(actorId: string, userId: string) {
-  const actor = loadActor(actorId);
+  const actor = await loadActor(actorId);
   assertSelfOrAdmin(actor, userId);
   const db = getDb();
   return (await db
@@ -305,7 +320,7 @@ export async function listUserDeposits(actorId: string, userId: string) {
 }
 
 export async function listPendingDeposits(actorId: string) {
-  const actor = loadActor(actorId);
+  const actor = await loadActor(actorId);
   assertAdmin(actor);
   const db = getDb();
   const rows = (await db
@@ -316,26 +331,31 @@ export async function listPendingDeposits(actorId: string) {
     )
     .orderBy(desc(transactions.createdAt))) as any[];
 
-  return Promise.all(rows.map(async (t: any) => {
-    const userRows = (await db.select().from(users).where(eq(users.id, t.userId))) as any[];
-    const user = userRows[0];
-    let meta: Record<string, unknown> = {};
-    try {
-      meta = t.meta ? JSON.parse(t.meta) : {};
-    } catch {
-      meta = {};
-    }
-    return {
-      ...t,
-      userEmail: user?.email,
-      userName: user?.name,
-      meta,
-    };
-  }));
+  return Promise.all(
+    rows.map(async (t: any) => {
+      const userRows = (await db
+        .select()
+        .from(users)
+        .where(eq(users.id, t.userId))) as any[];
+      const user = userRows[0];
+      let meta: Record<string, unknown> = {};
+      try {
+        meta = t.meta ? JSON.parse(t.meta) : {};
+      } catch {
+        meta = {};
+      }
+      return {
+        ...t,
+        userEmail: user?.email,
+        userName: user?.name,
+        meta,
+      };
+    }),
+  );
 }
 
 export async function listAdminDeposits(actorId: string, limit = 50) {
-  const actor = loadActor(actorId);
+  const actor = await loadActor(actorId);
   assertAdmin(actor);
   const db = getDb();
   const rows = (await db
@@ -346,15 +366,20 @@ export async function listAdminDeposits(actorId: string, limit = 50) {
 
   const sliced = rows.slice(0, limit);
 
-  return Promise.all(sliced.map(async (t: any) => {
-    const userRows = (await db.select().from(users).where(eq(users.id, t.userId))) as any[];
-    const user = userRows[0];
-    return {
-      ...t,
-      userEmail: user?.email,
-      userName: user?.name,
-    };
-  }));
+  return Promise.all(
+    sliced.map(async (t: any) => {
+      const userRows = (await db
+        .select()
+        .from(users)
+        .where(eq(users.id, t.userId))) as any[];
+      const user = userRows[0];
+      return {
+        ...t,
+        userEmail: user?.email,
+        userName: user?.name,
+      };
+    }),
+  );
 }
 
 /**
@@ -365,14 +390,14 @@ export async function adminConfirmDeposit(
   transactionId: string,
   note?: string,
 ) {
-  const actor = loadActor(actorId);
+  const actor = await loadActor(actorId);
   assertAdmin(actor);
   const db = getDb();
-  const row = db
+  const rows = (await db
     .select()
     .from(transactions)
-    .where(eq(transactions.id, transactionId))
-    .get();
+    .where(eq(transactions.id, transactionId))) as any[];
+  const row = rows[0];
   if (!row) throw new AppError("NOT_FOUND", "Deposit not found", 404);
   if (row.type !== "deposit") {
     throw new AppError("INVALID_STATE", "Not a deposit transaction");
@@ -384,14 +409,16 @@ export async function adminConfirmDeposit(
     );
   }
 
-  postLedgerEntry({
+  await postLedgerEntry({
     userId: row.userId,
     type: "deposit",
     amountCents: row.amountCents,
     asset: row.asset,
     refType: "transaction",
     refId: row.id,
-    note: note?.trim() || `Admin-confirmed deposit ${row.asset} · ${row.txRef}`,
+    note:
+      note?.trim() ||
+      `Admin-confirmed deposit ${row.asset} · ${row.txRef}`,
   });
 
   let meta: Record<string, unknown> = {};
@@ -404,23 +431,27 @@ export async function adminConfirmDeposit(
   meta.confirmedAt = nowIso();
   if (note?.trim()) meta.adminNote = note.trim();
 
-  db.update(transactions)
+  await db
+    .update(transactions)
     .set({
       status: "confirmed",
       meta: JSON.stringify(meta),
     })
-    .where(eq(transactions.id, transactionId))
-    .run();
+    .where(eq(transactions.id, transactionId));
 
-  logEvent({
+  await logEvent({
     actorId: actor.id,
     action: "deposit.admin_confirm",
     resourceType: "transaction",
     resourceId: transactionId,
-    meta: { userId: row.userId, amountCents: row.amountCents, asset: row.asset },
+    meta: {
+      userId: row.userId,
+      amountCents: row.amountCents,
+      asset: row.asset,
+    },
   });
 
-  createNotification({
+  await createNotification({
     userId: row.userId,
     title: "Deposit credited",
     body: `Your ${row.asset} deposit has been confirmed and credited.`,
@@ -429,11 +460,11 @@ export async function adminConfirmDeposit(
 
   await notifyDepositConfirmed(row.userId, row.amountCents, row.asset);
 
-  return db
+  const updated = (await db
     .select()
     .from(transactions)
-    .where(eq(transactions.id, transactionId))
-    .get()!;
+    .where(eq(transactions.id, transactionId))) as any[];
+  return updated[0]!;
 }
 
 /** Admin rejects a pending deposit (no balance change — nothing was credited). */
@@ -442,14 +473,14 @@ export async function adminRejectDeposit(
   transactionId: string,
   note?: string,
 ) {
-  const actor = loadActor(actorId);
+  const actor = await loadActor(actorId);
   assertAdmin(actor);
   const db = getDb();
-  const row = db
+  const rows = (await db
     .select()
     .from(transactions)
-    .where(eq(transactions.id, transactionId))
-    .get();
+    .where(eq(transactions.id, transactionId))) as any[];
+  const row = rows[0];
   if (!row) throw new AppError("NOT_FOUND", "Deposit not found", 404);
   if (row.type !== "deposit" || row.status !== "pending") {
     throw new AppError(
@@ -468,15 +499,15 @@ export async function adminRejectDeposit(
   meta.rejectedAt = nowIso();
   if (note?.trim()) meta.adminNote = note.trim();
 
-  db.update(transactions)
+  await db
+    .update(transactions)
     .set({
       status: "failed",
       meta: JSON.stringify(meta),
     })
-    .where(eq(transactions.id, transactionId))
-    .run();
+    .where(eq(transactions.id, transactionId));
 
-  logEvent({
+  await logEvent({
     actorId: actor.id,
     action: "deposit.admin_reject",
     resourceType: "transaction",
@@ -484,7 +515,7 @@ export async function adminRejectDeposit(
     meta: { note },
   });
 
-  createNotification({
+  await createNotification({
     userId: row.userId,
     title: "Deposit not confirmed",
     body:
@@ -493,11 +524,11 @@ export async function adminRejectDeposit(
     kind: "deposit",
   });
 
-  return db
+  const updated = (await db
     .select()
     .from(transactions)
-    .where(eq(transactions.id, transactionId))
-    .get()!;
+    .where(eq(transactions.id, transactionId))) as any[];
+  return updated[0]!;
 }
 
 export async function listRecentPrices() {
@@ -512,9 +543,7 @@ export async function listRecentPrices() {
 }
 
 export async function adminRefreshPrices(actorId: string) {
-  const actor = loadActor(actorId);
+  const actor = await loadActor(actorId);
   assertAdmin(actor);
   return fetchLivePrices();
 }
-
-

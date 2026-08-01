@@ -1,6 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { eq, desc } from "drizzle-orm";
+import type { InferSelectModel } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import {
   investmentPlans,
@@ -27,8 +28,6 @@ import {
   totalActiveInvestedCents,
 } from "./growth";
 
-import type { InferSelectModel } from "drizzle-orm";
-
 export type TimeRange = "1D" | "7D" | "6M" | "YTD" | "1Y" | "All";
 export type InvestmentPlan = InferSelectModel<typeof investmentPlans>;
 
@@ -38,7 +37,9 @@ export async function listPlans(activeOnly = true): Promise<InvestmentPlan[]> {
   return activeOnly ? rows.filter((p: any) => p.status === "active") : rows;
 }
 
-export async function getPlan(planIdOrSlug: string): Promise<InvestmentPlan | undefined> {
+export async function getPlan(
+  planIdOrSlug: string,
+): Promise<InvestmentPlan | undefined> {
   const db = getDb();
   const byId = await db
     .select()
@@ -54,7 +55,7 @@ export async function getPlan(planIdOrSlug: string): Promise<InvestmentPlan | un
 }
 
 export async function listUserInvestments(actorId: string, userId: string) {
-  const actor = loadActor(actorId);
+  const actor = await loadActor(actorId);
   assertSelfOrAdmin(actor, userId);
   // Accrue growth lazily when viewing investments
   await accrueUserGrowth(userId);
@@ -66,12 +67,15 @@ export async function listUserInvestments(actorId: string, userId: string) {
     .orderBy(desc(userInvestments.createdAt))) as any[];
 }
 
-export async function createInvestment(actorId: string, input: {
-  planId: string;
-  propertyId?: string;
-  amountCents: number;
-}) {
-  const actor = loadActor(actorId);
+export async function createInvestment(
+  actorId: string,
+  input: {
+    planId: string;
+    propertyId?: string;
+    amountCents: number;
+  },
+) {
+  const actor = await loadActor(actorId);
   assertActive(actor);
   assertKycApproved(actor);
 
@@ -106,9 +110,9 @@ export async function createInvestment(actorId: string, input: {
   // Project effective APY after this subscription
   const projectedTotal =
     (await totalActiveInvestedCents(actor.id)) + input.amountCents;
-  const defaultApy = resolveDefaultApyBps(projectedTotal);
+  const defaultApy = await resolveDefaultApyBps(projectedTotal);
   const effectiveApyBps = Math.round(
-    defaultApy * lockupMultiplier(plan.lockupDays),
+    defaultApy * (await lockupMultiplier(plan.lockupDays)),
   );
 
   await postLedgerEntry({
@@ -121,35 +125,33 @@ export async function createInvestment(actorId: string, input: {
     note: `Subscribe ${plan.name}`,
   });
 
-  await db.insert(userInvestments)
-    .values({
-      id,
-      userId: actor.id,
-      planId: plan.id,
-      propertyId: input.propertyId,
-      principalCents: input.amountCents,
-      status: "active",
-      startedAt: createdAt,
-      maturesAt: maturesAt.toISOString(),
-      roiToDateCents: 0,
-      lastAccruedAt: createdAt,
-      effectiveApyBps,
-      createdAt,
-    });
+  await db.insert(userInvestments).values({
+    id,
+    userId: actor.id,
+    planId: plan.id,
+    propertyId: input.propertyId,
+    principalCents: input.amountCents,
+    status: "active",
+    startedAt: createdAt,
+    maturesAt: maturesAt.toISOString(),
+    roiToDateCents: 0,
+    lastAccruedAt: createdAt,
+    effectiveApyBps,
+    createdAt,
+  });
 
-  await db.insert(transactions)
-    .values({
-      id: randomUUID(),
-      userId: actor.id,
-      type: "invest",
-      amountCents: input.amountCents,
-      asset: "USD",
-      status: "confirmed",
-      txRef: id,
-      createdAt,
-    });
+  await db.insert(transactions).values({
+    id: randomUUID(),
+    userId: actor.id,
+    type: "invest",
+    amountCents: input.amountCents,
+    asset: "USD",
+    status: "confirmed",
+    txRef: id,
+    createdAt,
+  });
 
-  logEvent({
+  await logEvent({
     actorId: actor.id,
     action: "investment.subscribe",
     resourceType: "investment",
@@ -164,12 +166,15 @@ export async function createInvestment(actorId: string, input: {
     plan.lockupDays,
   );
 
-  const createdRows = await db.select().from(userInvestments).where(eq(userInvestments.id, id));
+  const createdRows = await db
+    .select()
+    .from(userInvestments)
+    .where(eq(userInvestments.id, id));
   return createdRows[0]!;
 }
 
 export async function getPortfolioSummary(actorId: string, userId: string) {
-  const actor = loadActor(actorId);
+  const actor = await loadActor(actorId);
   assertSelfOrAdmin(actor, userId);
 
   // Live growth accrual before summarizing
@@ -220,7 +225,7 @@ export async function getPerformanceSeries(
   userId: string,
   range: TimeRange = "1Y",
 ) {
-  const actor = loadActor(actorId);
+  const actor = await loadActor(actorId);
   assertSelfOrAdmin(actor, userId);
   const db = getDb();
   const all = (await db

@@ -4,7 +4,7 @@ import { listFaq } from "@/lib/services/faq";
 import { Island, IslandBody, IslandHeader } from "@/components/ui/Island";
 
 export default async function AdminContentPage() {
-  const docs = listDocuments();
+  const docs = await listDocuments();
   const faqs = await listFaq();
 
   return (

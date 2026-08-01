@@ -10,7 +10,7 @@ type Props = { params: Promise<{ slug: string }> };
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   try {
     const { slug } = await params;
-    const doc = getDocument(slug);
+    const doc = await getDocument(slug);
     return { title: doc.title };
   } catch {
     return { title: "Document" };
@@ -21,11 +21,11 @@ export default async function DocumentPage({ params }: Props) {
   const { slug } = await params;
   let doc;
   try {
-    doc = getDocument(slug);
+    doc = await getDocument(slug);
   } catch {
     notFound();
   }
-  const all = listDocuments();
+  const all = await listDocuments();
 
   return (
     <div className="mx-auto grid max-w-5xl gap-8 px-4 py-16 sm:px-6 lg:grid-cols-[220px_1fr]">

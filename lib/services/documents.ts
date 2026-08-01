@@ -11,7 +11,11 @@ import { features } from "@/lib/config/features";
 const DOCS = [
   { slug: "terms", title: "Terms & Conditions", file: "terms.md" },
   { slug: "privacy", title: "Privacy Policy", file: "privacy.md" },
-  { slug: "risk-disclosure", title: "Risk Disclosure", file: "risk-disclosure.md" },
+  {
+    slug: "risk-disclosure",
+    title: "Risk Disclosure",
+    file: "risk-disclosure.md",
+  },
   { slug: "aml-kyc", title: "AML / KYC Policy", file: "aml-kyc.md" },
 ];
 
@@ -21,31 +25,34 @@ function readFileContent(file: string): string {
   return fs.readFileSync(p, "utf8");
 }
 
-export function listDocuments() {
+export async function listDocuments() {
   const db = getDb();
-  return DOCS.map((d: any) => {
-    const meta = db
-      .select()
-      .from(documentsMeta)
-      .where(eq(documentsMeta.slug, d.slug))
-      .get();
-    return {
-      slug: d.slug,
-      title: meta?.title ?? d.title,
-      lastUpdated: meta?.lastUpdated ?? new Date().toISOString().slice(0, 10),
-    };
-  });
+  return Promise.all(
+    DOCS.map(async (d: any) => {
+      const rows = (await db
+        .select()
+        .from(documentsMeta)
+        .where(eq(documentsMeta.slug, d.slug))) as any[];
+      const meta = rows[0];
+      return {
+        slug: d.slug,
+        title: meta?.title ?? d.title,
+        lastUpdated:
+          meta?.lastUpdated ?? new Date().toISOString().slice(0, 10),
+      };
+    }),
+  );
 }
 
-export function getDocument(slug: string) {
+export async function getDocument(slug: string) {
   const def = DOCS.find((d: any) => d.slug === slug);
   if (!def) throw new AppError("NOT_FOUND", "Document not found", 404);
   const db = getDb();
-  const meta = db
+  const rows = (await db
     .select()
     .from(documentsMeta)
-    .where(eq(documentsMeta.slug, slug))
-    .get();
+    .where(eq(documentsMeta.slug, slug))) as any[];
+  const meta = rows[0];
   const body = meta?.bodyOverride ?? readFileContent(def.file);
   return {
     slug,
@@ -55,7 +62,7 @@ export function getDocument(slug: string) {
   };
 }
 
-export function updateContent(
+export async function updateContent(
   actorId: string,
   slug: string,
   bodyOverride: string,
@@ -63,33 +70,31 @@ export function updateContent(
   if (!features.adminCms) {
     throw new AppError("FORBIDDEN", "CMS disabled", 403);
   }
-  const actor = loadActor(actorId);
+  const actor = await loadActor(actorId);
   assertAdmin(actor);
   const def = DOCS.find((d: any) => d.slug === slug);
   if (!def) throw new AppError("NOT_FOUND", "Document not found", 404);
 
   const db = getDb();
   const now = new Date().toISOString();
-  const existing = db
+  const existingRows = (await db
     .select()
     .from(documentsMeta)
-    .where(eq(documentsMeta.slug, slug))
-    .get();
+    .where(eq(documentsMeta.slug, slug))) as any[];
+  const existing = existingRows[0];
   if (existing) {
-    db.update(documentsMeta)
+    await db
+      .update(documentsMeta)
       .set({ bodyOverride, lastUpdated: now })
-      .where(eq(documentsMeta.slug, slug))
-      .run();
+      .where(eq(documentsMeta.slug, slug));
   } else {
-    db.insert(documentsMeta)
-      .values({
-        id: slug,
-        slug,
-        title: def.title,
-        bodyOverride,
-        lastUpdated: now,
-      })
-      .run();
+    await db.insert(documentsMeta).values({
+      id: slug,
+      slug,
+      title: def.title,
+      bodyOverride,
+      lastUpdated: now,
+    });
   }
-  return getDocument(slug);
+  return await getDocument(slug);
 }

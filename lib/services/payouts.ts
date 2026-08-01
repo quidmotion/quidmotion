@@ -23,7 +23,7 @@ function nowIso() {
 }
 
 export async function listUpcoming(actorId: string, userId: string) {
-  const actor = loadActor(actorId);
+  const actor = await loadActor(actorId);
   assertSelfOrAdmin(actor, userId);
   const db = getDb();
   return (await db
@@ -43,7 +43,7 @@ export async function listUpcoming(actorId: string, userId: string) {
 }
 
 export async function listUserPayouts(actorId: string, userId: string) {
-  const actor = loadActor(actorId);
+  const actor = await loadActor(actorId);
   assertSelfOrAdmin(actor, userId);
   const db = getDb();
   return (await db
@@ -68,7 +68,7 @@ export async function requestWithdrawal(
   actorId: string,
   input: WithdrawalRequestInput,
 ) {
-  const actor = loadActor(actorId);
+  const actor = await loadActor(actorId);
   assertActive(actor);
   assertKycApproved(actor);
 
@@ -92,13 +92,14 @@ export async function requestWithdrawal(
   }
 
   const asset = (input.asset ?? "USDT").toUpperCase();
-  const network = input.network?.trim() || (asset === "BTC" ? "Bitcoin" : "Ethereum");
+  const network =
+    input.network?.trim() || (asset === "BTC" ? "Bitcoin" : "Ethereum");
 
   const db = getDb();
   const id = randomUUID();
   const createdAt = nowIso();
 
-  postLedgerEntry({
+  await postLedgerEntry({
     userId: actor.id,
     type: "withdraw",
     amountCents: -amountCents,
@@ -107,35 +108,31 @@ export async function requestWithdrawal(
     note: "Withdrawal request",
   });
 
-  db.insert(payouts)
-    .values({
-      id,
-      userId: actor.id,
-      payoutType: "withdrawal",
-      amountCents,
-      status: "pending_approval",
-      withdrawalAddress: address,
-      withdrawalAsset: asset,
-      withdrawalNetwork: network,
-      createdAt,
-    })
-    .run();
+  await db.insert(payouts).values({
+    id,
+    userId: actor.id,
+    payoutType: "withdrawal",
+    amountCents,
+    status: "pending_approval",
+    withdrawalAddress: address,
+    withdrawalAsset: asset,
+    withdrawalNetwork: network,
+    createdAt,
+  });
 
-  db.insert(transactions)
-    .values({
-      id: randomUUID(),
-      userId: actor.id,
-      type: "withdraw",
-      amountCents,
-      asset,
-      status: "pending",
-      txRef: id,
-      meta: JSON.stringify({ address, network }),
-      createdAt,
-    })
-    .run();
+  await db.insert(transactions).values({
+    id: randomUUID(),
+    userId: actor.id,
+    type: "withdraw",
+    amountCents,
+    asset,
+    status: "pending",
+    txRef: id,
+    meta: JSON.stringify({ address, network }),
+    createdAt,
+  });
 
-  logEvent({
+  await logEvent({
     actorId: actor.id,
     action: "withdrawal.request",
     resourceType: "payout",
@@ -145,60 +142,71 @@ export async function requestWithdrawal(
 
   await notifyWithdrawalRequested(actor.id, amountCents, address);
 
-  return db.select().from(payouts).where(eq(payouts.id, id)).get()!;
+  const createdRows = (await db
+    .select()
+    .from(payouts)
+    .where(eq(payouts.id, id))) as any[];
+  return createdRows[0]!;
 }
 
-export function listPendingApprovals(actorId: string) {
-  const actor = loadActor(actorId);
+export async function listPendingApprovals(actorId: string) {
+  const actor = await loadActor(actorId);
   assertAdmin(actor);
   const db = getDb();
-  return db
+  return (await db
     .select()
     .from(payouts)
     .where(eq(payouts.status, "pending_approval"))
-    .orderBy(desc(payouts.createdAt))
-    .all();
+    .orderBy(desc(payouts.createdAt))) as any[];
 }
 
 /** Approved / in-flight withdrawals awaiting manual on-chain send + completion. */
-export function listProcessing(actorId: string) {
-  const actor = loadActor(actorId);
+export async function listProcessing(actorId: string) {
+  const actor = await loadActor(actorId);
   assertAdmin(actor);
   const db = getDb();
-  return db
+  return (await db
     .select()
     .from(payouts)
     .where(eq(payouts.status, "processing"))
-    .orderBy(desc(payouts.createdAt))
-    .all();
+    .orderBy(desc(payouts.createdAt))) as any[];
 }
 
-export function listAdminWithdrawals(actorId: string) {
-  const actor = loadActor(actorId);
+export async function listAdminWithdrawals(actorId: string) {
+  const actor = await loadActor(actorId);
   assertAdmin(actor);
   const db = getDb();
-  const rows = db
+  const rows = (await db
     .select()
     .from(payouts)
     .where(eq(payouts.payoutType, "withdrawal"))
-    .orderBy(desc(payouts.createdAt))
-    .all();
+    .orderBy(desc(payouts.createdAt))) as any[];
 
-  return rows.map((p: any) => {
-    const user = db.select().from(users).where(eq(users.id, p.userId)).get();
-    return {
-      ...p,
-      userEmail: user?.email,
-      userName: user?.name,
-    };
-  });
+  return Promise.all(
+    rows.map(async (p: any) => {
+      const userRows = (await db
+        .select()
+        .from(users)
+        .where(eq(users.id, p.userId))) as any[];
+      const user = userRows[0];
+      return {
+        ...p,
+        userEmail: user?.email,
+        userName: user?.name,
+      };
+    }),
+  );
 }
 
-export function approve(actorId: string, payoutId: string) {
+export async function approve(actorId: string, payoutId: string) {
   return approvePayout(actorId, payoutId);
 }
 
-export function reject(actorId: string, payoutId: string, note?: string) {
+export async function reject(
+  actorId: string,
+  payoutId: string,
+  note?: string,
+) {
   return rejectPayout(actorId, payoutId, note);
 }
 
@@ -206,11 +214,15 @@ export function reject(actorId: string, payoutId: string, note?: string) {
  * Admin approves → status becomes "processing".
  * Admin then manually sends crypto to withdrawal_address and marks completed.
  */
-export function approvePayout(actorId: string, payoutId: string) {
-  const actor = loadActor(actorId);
+export async function approvePayout(actorId: string, payoutId: string) {
+  const actor = await loadActor(actorId);
   assertAdmin(actor);
   const db = getDb();
-  const row = db.select().from(payouts).where(eq(payouts.id, payoutId)).get();
+  const rows = (await db
+    .select()
+    .from(payouts)
+    .where(eq(payouts.id, payoutId))) as any[];
+  const row = rows[0];
   if (!row) throw new AppError("NOT_FOUND", "Payout not found", 404);
   if (row.status !== "pending_approval") {
     throw new AppError("INVALID_STATE", `Cannot approve from ${row.status}`);
@@ -222,36 +234,48 @@ export function approvePayout(actorId: string, payoutId: string) {
     );
   }
   const now = nowIso();
-  db.update(payouts)
+  await db
+    .update(payouts)
     .set({
       status: "processing",
       reviewedBy: actor.id,
       reviewedAt: now,
     })
-    .where(eq(payouts.id, payoutId))
-    .run();
+    .where(eq(payouts.id, payoutId));
 
-  logEvent({
+  await logEvent({
     actorId: actor.id,
     action: "withdrawal.approve",
     resourceType: "payout",
     resourceId: payoutId,
   });
 
-  return db.select().from(payouts).where(eq(payouts.id, payoutId)).get()!;
+  const updated = (await db
+    .select()
+    .from(payouts)
+    .where(eq(payouts.id, payoutId))) as any[];
+  return updated[0]!;
 }
 
-export function rejectPayout(actorId: string, payoutId: string, note?: string) {
-  const actor = loadActor(actorId);
+export async function rejectPayout(
+  actorId: string,
+  payoutId: string,
+  note?: string,
+) {
+  const actor = await loadActor(actorId);
   assertAdmin(actor);
   const db = getDb();
-  const row = db.select().from(payouts).where(eq(payouts.id, payoutId)).get();
+  const rows = (await db
+    .select()
+    .from(payouts)
+    .where(eq(payouts.id, payoutId))) as any[];
+  const row = rows[0];
   if (!row) throw new AppError("NOT_FOUND", "Payout not found", 404);
   if (row.status !== "pending_approval" && row.status !== "processing") {
     throw new AppError("INVALID_STATE", `Cannot reject from ${row.status}`);
   }
   // Refund available balance
-  postLedgerEntry({
+  await postLedgerEntry({
     userId: row.userId,
     type: "refund",
     amountCents: row.amountCents,
@@ -260,30 +284,29 @@ export function rejectPayout(actorId: string, payoutId: string, note?: string) {
     note: note ?? "Withdrawal rejected — funds restored",
   });
   const now = nowIso();
-  db.update(payouts)
+  await db
+    .update(payouts)
     .set({
       status: "rejected",
       reviewedBy: actor.id,
       reviewedAt: now,
       note,
     })
-    .where(eq(payouts.id, payoutId))
-    .run();
+    .where(eq(payouts.id, payoutId));
 
   // Mark related tx failed
-  const txs = db
+  const txs = (await db
     .select()
     .from(transactions)
-    .where(eq(transactions.txRef, payoutId))
-    .all();
+    .where(eq(transactions.txRef, payoutId))) as any[];
   for (const t of txs) {
-    db.update(transactions)
+    await db
+      .update(transactions)
       .set({ status: "failed" })
-      .where(eq(transactions.id, t.id))
-      .run();
+      .where(eq(transactions.id, t.id));
   }
 
-  logEvent({
+  await logEvent({
     actorId: actor.id,
     action: "withdrawal.reject",
     resourceType: "payout",
@@ -291,7 +314,11 @@ export function rejectPayout(actorId: string, payoutId: string, note?: string) {
     meta: { note },
   });
 
-  return db.select().from(payouts).where(eq(payouts.id, payoutId)).get()!;
+  const updated = (await db
+    .select()
+    .from(payouts)
+    .where(eq(payouts.id, payoutId))) as any[];
+  return updated[0]!;
 }
 
 /**
@@ -303,10 +330,14 @@ export async function completePayout(
   payoutId: string,
   note?: string,
 ) {
-  const actor = loadActor(actorId);
+  const actor = await loadActor(actorId);
   assertAdmin(actor);
   const db = getDb();
-  const row = db.select().from(payouts).where(eq(payouts.id, payoutId)).get();
+  const rows = (await db
+    .select()
+    .from(payouts)
+    .where(eq(payouts.id, payoutId))) as any[];
+  const row = rows[0];
   if (!row) throw new AppError("NOT_FOUND", "Payout not found", 404);
   if (row.status !== "processing") {
     throw new AppError(
@@ -315,28 +346,27 @@ export async function completePayout(
     );
   }
   const now = nowIso();
-  db.update(payouts)
+  await db
+    .update(payouts)
     .set({
       status: "completed",
       completedAt: now,
       note: note ?? row.note,
     })
-    .where(eq(payouts.id, payoutId))
-    .run();
+    .where(eq(payouts.id, payoutId));
 
-  const txs = db
+  const txs = (await db
     .select()
     .from(transactions)
-    .where(eq(transactions.txRef, payoutId))
-    .all();
+    .where(eq(transactions.txRef, payoutId))) as any[];
   for (const t of txs) {
-    db.update(transactions)
+    await db
+      .update(transactions)
       .set({ status: "confirmed" })
-      .where(eq(transactions.id, t.id))
-      .run();
+      .where(eq(transactions.id, t.id));
   }
 
-  logEvent({
+  await logEvent({
     actorId: actor.id,
     action: "withdrawal.complete",
     resourceType: "payout",
@@ -349,5 +379,9 @@ export async function completePayout(
     row.withdrawalAddress ?? "",
   );
 
-  return db.select().from(payouts).where(eq(payouts.id, payoutId)).get()!;
+  const updated = (await db
+    .select()
+    .from(payouts)
+    .where(eq(payouts.id, payoutId))) as any[];
+  return updated[0]!;
 }

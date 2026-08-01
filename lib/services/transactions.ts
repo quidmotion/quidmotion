@@ -1,26 +1,25 @@
 import "server-only";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { transactions } from "@/lib/db/schema";
 import { assertSelfOrAdmin, loadActor } from "./_authz";
 
-export function listTransactions(
+export async function listTransactions(
   actorId: string,
   userId: string,
   opts: { page?: number; pageSize?: number; type?: string } = {},
 ) {
-  const actor = loadActor(actorId);
+  const actor = await loadActor(actorId);
   assertSelfOrAdmin(actor, userId);
   const page = opts.page ?? 1;
   const pageSize = opts.pageSize ?? 20;
   const db = getDb();
 
-  let rows = db
+  let rows = (await db
     .select()
     .from(transactions)
     .where(eq(transactions.userId, userId))
-    .orderBy(desc(transactions.createdAt))
-    .all();
+    .orderBy(desc(transactions.createdAt))) as any[];
 
   if (opts.type) {
     rows = rows.filter((r: any) => r.type === opts.type);

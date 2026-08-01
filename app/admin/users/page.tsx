@@ -11,7 +11,7 @@ async function toggleStatus(formData: FormData) {
   if (!session) return;
   const userId = String(formData.get("userId"));
   const status = String(formData.get("status")) as "active" | "suspended";
-  setUserStatus(session.user.id, userId, status);
+  await setUserStatus(session.user.id, userId, status);
   revalidatePath("/admin/users");
 }
 

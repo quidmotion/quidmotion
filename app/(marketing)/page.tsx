@@ -76,7 +76,7 @@ export default function HomePage() {
             },
             { label: "Properties", value: String(stats.propertiesFunded) },
             { label: "Investors", value: String(stats.activeUsers) },
-          ].map((s) => (
+          ].map((s: any) => (
             <Island key={s.label}>
               <IslandBody className="py-4 text-center">
                 <div className="text-xs uppercase tracking-wide text-white/40">
@@ -190,13 +190,13 @@ export default function HomePage() {
             { name: "Aaron Crowford", role: "Managing Partner · 18 yrs RE" },
             { name: "Sigrid Abdal", role: "Head of Acquisitions" },
             { name: "Sofia Bennet", role: "Compliance & Risk" },
-          ].map((m) => (
+          ].map((m: any) => (
             <Island key={m.name}>
               <IslandBody className="flex items-center gap-4 pt-5">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-violet-500/40 to-pink-500/40 text-sm font-semibold">
                   {m.name
                     .split(" ")
-                    .map((n) => n[0])
+                    .map((n: any) => n[0])
                     .join("")}
                 </div>
                 <div>

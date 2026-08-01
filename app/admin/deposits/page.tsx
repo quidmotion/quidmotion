@@ -19,7 +19,7 @@ export default async function AdminDepositsPage() {
   const session = await getAuth().getSession();
   const pending = listPendingDeposits(session!.user.id);
   const history = listAdminDeposits(session!.user.id, 40).filter(
-    (d) => d.status !== "pending",
+    (d: any) => d.status !== "pending",
   );
 
   return (
@@ -42,7 +42,7 @@ export default async function AdminDepositsPage() {
           {pending.length === 0 && (
             <p className="text-sm text-white/40">No pending deposits.</p>
           )}
-          {pending.map((d) => (
+          {pending.map((d: any) => (
             <div
               key={d.id}
               className="rounded-xl border border-white/8 bg-white/5 p-4"
@@ -128,7 +128,7 @@ export default async function AdminDepositsPage() {
           {history.length === 0 && (
             <p className="text-sm text-white/40">No confirmed or rejected deposits yet.</p>
           )}
-          {history.map((d) => (
+          {history.map((d: any) => (
             <div
               key={d.id}
               className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white/5 px-3 py-2 text-sm"

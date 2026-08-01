@@ -50,7 +50,7 @@ export default async function DashboardLayout({
           </Link>
 
           <nav className="flex flex-1 flex-col gap-1">
-            {siteConfig.dashboardNav.map((item) => {
+            {siteConfig.dashboardNav.map((item: any) => {
               const Icon = icons[item.icon] ?? Home;
               return (
                 <Link
@@ -79,7 +79,7 @@ export default async function DashboardLayout({
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-violet-500/50 to-pink-500/50 text-xs font-semibold">
                 {user.name
                   .split(" ")
-                  .map((n) => n[0])
+                  .map((n: any) => n[0])
                   .join("")
                   .slice(0, 2)}
               </div>
@@ -104,7 +104,7 @@ export default async function DashboardLayout({
         <div className="flex min-w-0 flex-1 flex-col">
           {/* Mobile top nav */}
           <div className="mb-3 flex gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-black/30 p-2 backdrop-blur md:hidden">
-            {siteConfig.dashboardNav.map((item) => (
+            {siteConfig.dashboardNav.map((item: any) => (
               <Link
                 key={item.href}
                 href={item.href}

@@ -27,7 +27,7 @@ export async function POST(req: Request) {
     const prices = await fetchLivePrices();
     return NextResponse.json({
       ok: true,
-      rates: rates.map((r) => ({
+      rates: rates.map((r: any) => ({
         tier: r.tier,
         currentApyBps: r.currentApyBps,
         updatedAt: r.updatedAt,

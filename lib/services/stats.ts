@@ -33,12 +33,12 @@ export function getPlatformStats() {
   const allUsers = db.select().from(users).all();
   const inv = db.select().from(userInvestments).all();
   const props = db.select().from(properties).all();
-  const totalInvestedCents = inv.reduce((s, i) => s + i.principalCents, 0);
+  const totalInvestedCents = inv.reduce((s: any, i: any) => s + i.principalCents, 0);
   return {
     totalInvestedCents,
     avgRoiBps: 1250,
-    propertiesFunded: props.filter((p) => p.status === "funded" || p.status === "live").length,
-    activeUsers: allUsers.filter((u) => u.role === "user").length,
+    propertiesFunded: props.filter((p: any) => p.status === "funded" || p.status === "live").length,
+    activeUsers: allUsers.filter((u: any) => u.role === "user").length,
     asOf: new Date().toISOString(),
   };
 }
@@ -77,8 +77,8 @@ export function getAdminOverview() {
   return {
     totalUsers: allUsers.length,
     totalAumCents: inv
-      .filter((i) => i.status === "active" || i.status === "maturing")
-      .reduce((s, i) => s + i.principalCents, 0),
+      .filter((i: any) => i.status === "active" || i.status === "maturing")
+      .reduce((s: any, i: any) => s + i.principalCents, 0),
     pendingKyc: kyc.length,
     pendingWithdrawals: pendingPays.length + processingPays.length,
     pendingDeposits: pendingDeposits.length,

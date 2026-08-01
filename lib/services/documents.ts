@@ -23,7 +23,7 @@ function readFileContent(file: string): string {
 
 export function listDocuments() {
   const db = getDb();
-  return DOCS.map((d) => {
+  return DOCS.map((d: any) => {
     const meta = db
       .select()
       .from(documentsMeta)
@@ -38,7 +38,7 @@ export function listDocuments() {
 }
 
 export function getDocument(slug: string) {
-  const def = DOCS.find((d) => d.slug === slug);
+  const def = DOCS.find((d: any) => d.slug === slug);
   if (!def) throw new AppError("NOT_FOUND", "Document not found", 404);
   const db = getDb();
   const meta = db
@@ -65,7 +65,7 @@ export function updateContent(
   }
   const actor = loadActor(actorId);
   assertAdmin(actor);
-  const def = DOCS.find((d) => d.slug === slug);
+  const def = DOCS.find((d: any) => d.slug === slug);
   if (!def) throw new AppError("NOT_FOUND", "Document not found", 404);
 
   const db = getDb();

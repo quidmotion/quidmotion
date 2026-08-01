@@ -19,7 +19,7 @@ export default async function AdminAuditPage() {
               No audit events yet. Actions will appear here as admins operate.
             </p>
           )}
-          {events.map((e) => (
+          {events.map((e: any) => (
             <div
               key={e.id}
               className="rounded-xl border border-white/8 bg-white/5 px-3 py-2 text-sm"

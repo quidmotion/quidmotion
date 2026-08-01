@@ -18,8 +18,8 @@ export function listProperties(status?: string) {
     .from(properties)
     .orderBy(desc(properties.createdAt))
     .all();
-  if (status) return rows.filter((p) => p.status === status);
-  return rows.filter((p) => p.status === "live" || p.status === "funded");
+  if (status) return rows.filter((p: any) => p.status === status);
+  return rows.filter((p: any) => p.status === "live" || p.status === "funded");
 }
 
 export function getProperty(id: string) {
@@ -34,7 +34,7 @@ export function listFeatured(limit = 6) {
     .from(properties)
     .orderBy(desc(properties.createdAt))
     .all()
-    .filter((p) => p.featured && (p.status === "live" || p.status === "funded"))
+    .filter((p: any) => p.featured && (p.status === "live" || p.status === "funded"))
     .slice(0, limit);
 }
 

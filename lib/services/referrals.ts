@@ -21,10 +21,10 @@ export function getRewards(actorId: string, userId: string) {
     .all();
 
   const user = db.select().from(users).where(eq(users.id, userId)).get();
-  const totalCents = rewards.reduce((s, r) => s + r.amountCents, 0);
+  const totalCents = rewards.reduce((s: any, r: any) => s + r.amountCents, 0);
   const pendingCents = rewards
-    .filter((r) => r.status === "pending")
-    .reduce((s, r) => s + r.amountCents, 0);
+    .filter((r: any) => r.status === "pending")
+    .reduce((s: any, r: any) => s + r.amountCents, 0);
   const paidCents = totalCents - pendingCents;
 
   return {
@@ -42,7 +42,7 @@ export function getRewards(actorId: string, userId: string) {
         amountCents: pendingCents,
         color: "#8b5cf6",
       },
-    ].filter((s) => s.amountCents > 0),
+    ].filter((s: any) => s.amountCents > 0),
     totalCents,
     pendingCents,
     paidCents,

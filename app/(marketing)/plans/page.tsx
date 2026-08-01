@@ -93,7 +93,7 @@ export default function PlansPage() {
                 </tr>
               </thead>
               <tbody>
-                {plans.map((p) => (
+                {plans.map((p: any) => (
                   <tr key={p.id} className="border-t border-white/5">
                     <td className="py-3 pr-4 font-medium">{p.name}</td>
                     <td className="py-3 pr-4 tabular-nums">
@@ -113,7 +113,7 @@ export default function PlansPage() {
       </Island>
 
       <div className="mt-12">
-        <RoiCalculator plans={plans.map((p) => ({
+        <RoiCalculator plans={plans.map((p: any) => ({
           id: p.id,
           name: p.name,
           apyMidBps: Math.round((p.apyMinBps + p.apyMaxBps) / 2),

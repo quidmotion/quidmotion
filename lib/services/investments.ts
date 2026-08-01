@@ -35,7 +35,7 @@ export type InvestmentPlan = InferSelectModel<typeof investmentPlans>;
 export function listPlans(activeOnly = true): InvestmentPlan[] {
   const db = getDb();
   const rows = db.select().from(investmentPlans).all() as InvestmentPlan[];
-  return activeOnly ? rows.filter((p) => p.status === "active") : rows;
+  return activeOnly ? rows.filter((p: any) => p.status === "active") : rows;
 }
 
 export function getPlan(planIdOrSlug: string) {
@@ -181,9 +181,9 @@ export function getPortfolioSummary(actorId: string, userId: string) {
   const bal = getBalances(userId);
   const investments = listUserInvestments(actorId, userId);
   const activePrincipal = investments
-    .filter((i) => i.status === "active" || i.status === "maturing")
-    .reduce((s, i) => s + i.principalCents, 0);
-  const roi = investments.reduce((s, i) => s + i.roiToDateCents, 0);
+    .filter((i: any) => i.status === "active" || i.status === "maturing")
+    .reduce((s: any, i: any) => s + i.principalCents, 0);
+  const roi = investments.reduce((s: any, i: any) => s + i.roiToDateCents, 0);
   // Available already includes credited yield; locked is principal
   const totalValueCents = bal.availableCents + bal.lockedCents;
   const series = getPerformanceSeries(actorId, userId, "7D");
@@ -240,8 +240,8 @@ export function getPerformanceSeries(
     All: 0,
   };
   const cut = cutoffs[range];
-  const filtered = all.filter((s) => new Date(s.asOf).getTime() >= cut);
-  return filtered.map((s) => ({
+  const filtered = all.filter((s: any) => new Date(s.asOf).getTime() >= cut);
+  return filtered.map((s: any) => ({
     asOf: s.asOf,
     valueCents: s.valueCents,
   }));

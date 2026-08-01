@@ -72,7 +72,7 @@ export default async function ReferralsPage() {
           {rewards.rewards.length === 0 && (
             <p className="text-sm text-white/40">No rewards yet.</p>
           )}
-          {rewards.rewards.map((r) => (
+          {rewards.rewards.map((r: any) => (
             <div
               key={r.id}
               className="flex justify-between rounded-xl bg-white/5 px-3 py-2 text-sm"

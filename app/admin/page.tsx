@@ -33,7 +33,7 @@ export default function AdminOverviewPage() {
         <p className="text-sm text-white/45">Platform health at a glance.</p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-        {cards.map((c) => (
+        {cards.map((c: any) => (
           <Link key={c.label} href={c.href}>
             <Island className="h-full transition hover:border-violet-500/30">
               <IslandBody className="pt-5">

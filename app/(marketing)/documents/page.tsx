@@ -14,7 +14,7 @@ export default function DocumentsPage() {
         Terms, privacy, risk disclosures, and AML/KYC policy.
       </p>
       <div className="mt-10 space-y-3">
-        {docs.map((d) => (
+        {docs.map((d: any) => (
           <Link key={d.slug} href={`/documents/${d.slug}`}>
             <Island className="mb-3 transition hover:border-violet-500/30">
               <IslandBody className="flex items-center justify-between py-4">

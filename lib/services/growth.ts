@@ -123,7 +123,7 @@ export function totalActiveInvestedCents(userId: string): number {
       ),
     )
     .all();
-  return inv.reduce((s, i) => s + i.principalCents, 0);
+  return inv.reduce((s: number, i: any) => s + i.principalCents, 0);
 }
 
 /**
@@ -149,7 +149,7 @@ export function accrueUserGrowth(userId: string) {
     return { accruedCents: 0, investments: [] as { id: string; yieldCents: number; effectiveApyBps: number }[] };
   }
 
-  const totalInvested = investments.reduce((s, i) => s + i.principalCents, 0);
+  const totalInvested = investments.reduce((s: number, i: any) => s + i.principalCents, 0);
   const defaultApyBps = resolveDefaultApyBps(totalInvested);
   const now = Date.now();
   let totalYield = 0;
@@ -221,7 +221,7 @@ export function accrueUserGrowth(userId: string) {
     .from(userInvestments)
     .where(eq(userInvestments.userId, userId))
     .all();
-  const roi = freshInv.reduce((s, i) => s + i.roiToDateCents, 0);
+  const roi = freshInv.reduce((s: number, i: any) => s + i.roiToDateCents, 0);
   // Portfolio = available + locked principal (roi already moved to available)
   const valueCents = bal.availableCents + bal.lockedCents;
   void roi;
@@ -246,14 +246,14 @@ export function accrueAllUsersGrowth() {
     .from(userInvestments)
     .where(inArray(userInvestments.status, ["active", "maturing"]))
     .all();
-  const unique = [...new Set(all.map((r) => r.userId))];
-  const results = unique.map((userId) => ({
+  const unique = [...new Set(all.map((r: any) => r.userId as string))];
+  const results = (unique as string[]).map((userId: string) => ({
     userId,
     ...accrueUserGrowth(userId),
   }));
   return {
     usersProcessed: unique.length,
-    totalYieldCents: results.reduce((s, r) => s + r.accruedCents, 0),
+    totalYieldCents: results.reduce((s: number, r: any) => s + r.accruedCents, 0),
     results,
   };
 }
@@ -267,7 +267,7 @@ export function describeGrowthForUser(userId: string) {
     totalInvestedCents: totalInvested,
     defaultApyBps,
     defaultApyPct: defaultApyBps / 100,
-    tiers: rates.map((r) => ({
+    tiers: rates.map((r: any) => ({
       tier: r.tier,
       minUsd: r.minInvestedCents / 100,
       maxUsd: r.maxInvestedCents != null ? r.maxInvestedCents / 100 : null,
@@ -290,8 +290,8 @@ export function recalculateAllInvestmentsApy() {
     .from(userInvestments)
     .where(inArray(userInvestments.status, ["active", "maturing"]))
     .all();
-  const uniqueUserIds = [...new Set(activeUsers.map((u) => u.userId))];
-  for (const uid of uniqueUserIds) {
+  const uniqueUserIds = [...new Set(activeUsers.map((u: any) => u.userId as string))];
+  for (const uid of uniqueUserIds as string[]) {
     accrueUserGrowth(uid);
   }
 }

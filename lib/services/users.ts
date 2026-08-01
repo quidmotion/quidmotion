@@ -26,7 +26,7 @@ export function listUsers(
   if (opts.q) {
     const q = opts.q.toLowerCase();
     rows = rows.filter(
-      (u) =>
+      (u: any) =>
         u.email.toLowerCase().includes(q) ||
         u.name.toLowerCase().includes(q),
     );
@@ -35,7 +35,10 @@ export function listUsers(
   const pageSize = opts.pageSize ?? 50;
   const start = (page - 1) * pageSize;
   return {
-    items: rows.slice(start, start + pageSize).map(({ passwordHash: _, ...u }) => u),
+    items: rows.slice(start, start + pageSize).map((u: any) => {
+      const { passwordHash: _, ...safe } = u;
+      return safe;
+    }),
     total: rows.length,
   };
 }

@@ -78,7 +78,7 @@ export default async function AdminPropertiesPage() {
                 className="h-11 w-full rounded-xl border border-white/10 bg-white/5 px-3 text-sm"
                 defaultValue="live"
               >
-                {["draft", "live", "funded", "closed"].map((s) => (
+                {["draft", "live", "funded", "closed"].map((s: any) => (
                   <option key={s} value={s} className="bg-[#12141c]">
                     {s}
                   </option>
@@ -116,7 +116,7 @@ export default async function AdminPropertiesPage() {
           {props.length === 0 && (
             <p className="text-sm text-white/40">No properties yet.</p>
           )}
-          {props.map((p) => (
+          {props.map((p: any) => (
             <div
               key={p.id}
               className="rounded-xl border border-white/8 bg-white/5 p-4"
@@ -153,7 +153,7 @@ export default async function AdminPropertiesPage() {
                     defaultValue={p.status}
                     className="h-10 w-full rounded-xl border border-white/10 bg-white/5 px-2 text-xs"
                   >
-                    {["draft", "live", "funded", "closed"].map((s) => (
+                    {["draft", "live", "funded", "closed"].map((s: any) => (
                       <option key={s} value={s} className="bg-[#12141c]">
                         {s}
                       </option>

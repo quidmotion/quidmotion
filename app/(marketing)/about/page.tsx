@@ -56,13 +56,13 @@ export default function AboutPage() {
       <section className="mt-14">
         <h2 className="text-2xl font-semibold">Team</h2>
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
-          {team.map((m) => (
+          {team.map((m: any) => (
             <Island key={m.name}>
               <IslandBody className="pt-5">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-violet-500/30 to-pink-500/30 font-semibold">
                   {m.name
                     .split(" ")
-                    .map((n) => n[0])
+                    .map((n: any) => n[0])
                     .join("")}
                 </div>
                 <h3 className="mt-3 font-medium">{m.name}</h3>
@@ -77,7 +77,7 @@ export default function AboutPage() {
       <section className="mt-14">
         <h2 className="text-2xl font-semibold">Milestones</h2>
         <div className="mt-6 space-y-3">
-          {milestones.map((m) => (
+          {milestones.map((m: any) => (
             <div
               key={m.year}
               className="flex gap-4 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4"

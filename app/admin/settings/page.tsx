@@ -41,7 +41,7 @@ export default async function AdminSettingsPage() {
         </IslandHeader>
         <IslandBody>
           <form action={updateDepositWalletsAction} className="space-y-4">
-            {wallets.map((w) => (
+            {wallets.map((w: any) => (
               <div
                 key={w.asset}
                 className="grid gap-3 rounded-xl border border-white/8 bg-white/5 p-3 sm:grid-cols-2"
@@ -136,7 +136,7 @@ export default async function AdminSettingsPage() {
             </form>
           </IslandHeader>
           <IslandBody className="space-y-2">
-            {prices.map((p) => (
+            {prices.map((p: any) => (
               <div
                 key={p.asset}
                 className="flex items-center justify-between rounded-xl bg-white/5 px-3 py-2 text-sm"
@@ -173,7 +173,7 @@ export default async function AdminSettingsPage() {
               <div className="text-xs font-semibold uppercase text-violet-300">
                 Tier APY Rates (%)
               </div>
-              {rates.map((r) => (
+              {rates.map((r: any) => (
                 <div
                   key={r.tier}
                   className="rounded-xl border border-white/8 bg-white/5 p-3 space-y-2 text-xs"
@@ -274,7 +274,7 @@ export default async function AdminSettingsPage() {
           {outbox.length === 0 && (
             <p className="text-sm text-white/40">No emails sent yet.</p>
           )}
-          {outbox.map((e) => (
+          {outbox.map((e: any) => (
             <div
               key={e.id}
               className="rounded-xl border border-white/8 bg-white/5 px-3 py-2 text-sm"

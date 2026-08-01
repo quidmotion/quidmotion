@@ -27,7 +27,7 @@ export default async function WithdrawPage() {
   const balance = getBalances(session.user.id);
   const kycApproved = session.user.kycStatus === "approved";
   const history = listUserPayouts(session.user.id, session.user.id).filter(
-    (p) => p.payoutType === "withdrawal",
+    (p: any) => p.payoutType === "withdrawal",
   );
 
   return (
@@ -75,7 +75,7 @@ export default async function WithdrawPage() {
           {history.length === 0 && (
             <p className="text-sm text-white/40">No withdrawals yet.</p>
           )}
-          {history.map((p) => (
+          {history.map((p: any) => (
             <div
               key={p.id}
               className="rounded-xl border border-white/8 bg-white/5 p-3"

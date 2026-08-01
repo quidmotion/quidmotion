@@ -20,7 +20,7 @@ export default async function PropertiesPage() {
         </p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {properties.map((p) => {
+        {properties.map((p: any) => {
           const pct =
             p.targetRaiseCents > 0
               ? Math.min(100, (p.raisedCents / p.targetRaiseCents) * 100)

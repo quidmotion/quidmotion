@@ -137,7 +137,7 @@ export async function updateDepositWalletsAction(
   try {
     const formData = asFormData(prevOrForm, maybeForm);
     const admin = await requireAdmin();
-    const wallets = settings.DEPOSIT_ASSETS.map((asset) => ({
+    const wallets = settings.DEPOSIT_ASSETS.map((asset: any) => ({
       asset,
       address: String(formData.get(`address_${asset}`) ?? ""),
       network: String(formData.get(`network_${asset}`) ?? ""),
@@ -305,7 +305,7 @@ export async function updateApyRulesAction(
     const formData = asFormData(prevOrForm, maybeForm);
     const admin = await requireAdmin();
     const rates = growth.listDefaultPortfolioRates();
-    const tiers = rates.map((r) => ({
+    const tiers = rates.map((r: any) => ({
       tier: r.tier,
       currentApyPct: Number(formData.get(`current_${r.tier}`) ?? r.currentApyBps / 100),
       minApyPct: Number(formData.get(`min_${r.tier}`) ?? r.apyMinBps / 100),

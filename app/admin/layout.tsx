@@ -22,7 +22,7 @@ export default async function AdminLayout({
               {siteConfig.name} Admin
             </Link>
             <nav className="flex flex-wrap gap-1">
-              {siteConfig.adminNav.map((item) => (
+              {siteConfig.adminNav.map((item: any) => (
                 <Link
                   key={item.href}
                   href={item.href}

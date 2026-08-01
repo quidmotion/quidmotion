@@ -15,7 +15,7 @@ export async function updateLockup(userId: string, newDays: typeof LOCKUP_OPTION
     throw new Error("Invalid lockup period");
   }
   const db = getDb();
-  const current = await db.select().from(users).where(eq(users.id, userId)).then(r => r[0]);
+  const current = await db.select().from(users).where(eq(users.id, userId)).then((r: any) => r[0]);
   if (!current) throw new Error("User not found");
   const currentDays = current.lockupDays ?? 90;
   if (newDays < currentDays) {

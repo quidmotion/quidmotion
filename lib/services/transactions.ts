@@ -23,7 +23,7 @@ export function listTransactions(
     .all();
 
   if (opts.type) {
-    rows = rows.filter((r) => r.type === opts.type);
+    rows = rows.filter((r: any) => r.type === opts.type);
   }
 
   const total = rows.length;

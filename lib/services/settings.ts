@@ -79,7 +79,7 @@ export function setSettings(
 }
 
 export function getDepositWallets() {
-  return DEPOSIT_ASSETS.map((asset) => ({
+  return DEPOSIT_ASSETS.map((asset: any) => ({
     asset,
     address: getSettingOrDefault(
       SETTING_KEYS.depositWallet(asset),

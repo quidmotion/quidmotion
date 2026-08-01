@@ -35,7 +35,7 @@ export default async function TransactionsPage() {
                 </tr>
               </thead>
               <tbody>
-                {items.map((tx) => (
+                {items.map((tx: any) => (
                   <tr key={tx.id} className="border-t border-white/5">
                     <td className="py-2.5 pr-4 text-white/50">
                       {tx.createdAt.slice(0, 10)}

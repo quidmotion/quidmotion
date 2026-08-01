@@ -58,8 +58,8 @@ export default async function DashboardPage() {
       amountCents: summary.roiToDateCents,
       color: "#ec4899",
     },
-  ].filter((s) => s.amountCents > 0);
-  const mixTotal = mixSegments.reduce((s, seg) => s + seg.amountCents, 0);
+  ].filter((s: any) => s.amountCents > 0);
+  const mixTotal = mixSegments.reduce((s: any, seg: any) => s + seg.amountCents, 0);
 
   return (
     <div className="space-y-4 pb-8">
@@ -111,7 +111,7 @@ export default async function DashboardPage() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-1 rounded-full bg-white/5 p-1">
-                  {["1D", "7D", "6M", "YTD", "1Y", "All"].map((t) => (
+                  {["1D", "7D", "6M", "YTD", "1Y", "All"].map((t: any) => (
                     <span
                       key={t}
                       className={
@@ -146,7 +146,7 @@ export default async function DashboardPage() {
           </Island>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            {plans.map((plan) => (
+            {plans.map((plan: any) => (
               <Island key={plan.id}>
                 <IslandBody className="flex h-full flex-col pt-5">
                   <div className="flex items-center justify-between">
@@ -161,8 +161,8 @@ export default async function DashboardPage() {
                   <div className="mt-4 text-2xl font-semibold tabular-nums">
                     {formatUsd(
                       summary.investments
-                        .filter((i) => i.planId === plan.id)
-                        .reduce((s, i) => s + i.principalCents, 0),
+                        .filter((i: any) => i.planId === plan.id)
+                        .reduce((s: any, i: any) => s + i.principalCents, 0),
                     )}
                   </div>
                   <div className="mt-auto flex justify-end pt-4">
@@ -225,7 +225,7 @@ export default async function DashboardPage() {
               {notes.length === 0 && (
                 <p className="text-sm text-white/40">No alerts yet.</p>
               )}
-              {notes.map((n) => (
+              {notes.map((n: any) => (
                 <div
                   key={n.id}
                   className="rounded-xl border border-white/8 bg-white/5 px-3 py-2"
@@ -282,7 +282,7 @@ export default async function DashboardPage() {
           </IslandHeader>
           <IslandBody>
             <div className="flex gap-3 overflow-x-auto pb-1">
-              {properties.map((p) => (
+              {properties.map((p: any) => (
                 <div
                   key={p.id}
                   className="min-w-[200px] rounded-xl border border-white/8 bg-white/5 p-3"
@@ -312,7 +312,7 @@ export default async function DashboardPage() {
             {upcoming.length === 0 && (
               <p className="text-sm text-white/40">Nothing scheduled.</p>
             )}
-            {upcoming.map((p) => (
+            {upcoming.map((p: any) => (
               <div
                 key={p.id}
                 className="flex items-center justify-between rounded-xl bg-white/5 px-3 py-2"

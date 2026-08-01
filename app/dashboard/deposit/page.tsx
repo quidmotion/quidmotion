@@ -68,7 +68,7 @@ export default async function DepositPage() {
           <span className="font-medium">Supported assets</span>
         </IslandHeader>
         <IslandBody className="flex flex-wrap gap-2">
-          {assets.map((a) => (
+          {assets.map((a: any) => (
             <Badge key={a.symbol} tone={a.primary ? "accent" : "neutral"}>
               {a.symbol}
               {a.primary ? " · primary" : ""}
@@ -94,7 +94,7 @@ export default async function DepositPage() {
           {deposits.length === 0 && (
             <p className="text-sm text-white/40">No deposits yet.</p>
           )}
-          {deposits.map((d) => (
+          {deposits.map((d: any) => (
             <div
               key={d.id}
               className="rounded-xl border border-white/8 bg-white/5 p-3"

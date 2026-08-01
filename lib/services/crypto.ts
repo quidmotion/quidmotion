@@ -98,7 +98,7 @@ export async function fetchLivePrices(): Promise<
     console.warn("[prices] live fetch failed, using cache/fallback", e);
     const cached = listCachedLatestPrices();
     if (cached.length) {
-      return cached.map((c) => ({
+      return cached.map((c: any) => ({
         asset: c.asset,
         priceUsdCents: c.priceUsdCents,
         asOf: c.asOf,
@@ -137,7 +137,7 @@ export async function getPrices() {
       (c) => Date.now() - new Date(c.asOf).getTime() < 2 * 60 * 1000,
     );
   if (freshEnough) {
-    return cached.map((c) => ({
+    return cached.map((c: any) => ({
       asset: c.asset,
       priceUsdCents: c.priceUsdCents,
       asOf: c.asOf,
@@ -157,7 +157,7 @@ export function getMockPrices() {
 }
 
 export function listSupportedAssets() {
-  return DEPOSIT_ASSETS.map((symbol) => ({
+  return DEPOSIT_ASSETS.map((symbol: any) => ({
     symbol,
     primary: symbol === "USDT" || symbol === "USDC",
   }));
@@ -166,7 +166,7 @@ export function listSupportedAssets() {
 export function getDepositAddress(_userId: string | null, asset = "USDT") {
   const key = asset.toUpperCase();
   const wallets = getDepositWallets();
-  const row = wallets.find((w) => w.asset === key);
+  const row = wallets.find((w: any) => w.asset === key);
   if (!row || !row.address) {
     throw new AppError(
       "VALIDATION",
@@ -182,7 +182,7 @@ export function getDepositAddress(_userId: string | null, asset = "USDT") {
 }
 
 export function getAllDepositAddresses() {
-  return getDepositWallets().map((w) => ({
+  return getDepositWallets().map((w: any) => ({
     asset: w.asset,
     address: w.address,
     network: w.network,
@@ -192,7 +192,7 @@ export function getAllDepositAddresses() {
 /** Convert crypto units to USD cents using latest known prices. */
 export function toUsdCents(asset: string, units: number): number {
   const key = asset.toUpperCase();
-  const cached = listCachedLatestPrices().find((p) => p.asset === key);
+  const cached = listCachedLatestPrices().find((p: any) => p.asset === key);
   const price = cached?.priceUsdCents ?? SAFE_FALLBACK[key];
   if (!price) throw new AppError("VALIDATION", `Unsupported asset: ${asset}`);
   if (key === "USDT" || key === "USDC") {
@@ -318,7 +318,7 @@ export function listPendingDeposits(actorId: string) {
     .orderBy(desc(transactions.createdAt))
     .all();
 
-  return rows.map((t) => {
+  return rows.map((t: any) => {
     const user = db.select().from(users).where(eq(users.id, t.userId)).get();
     let meta: Record<string, unknown> = {};
     try {
@@ -347,7 +347,7 @@ export function listAdminDeposits(actorId: string, limit = 50) {
     .all()
     .slice(0, limit);
 
-  return rows.map((t) => {
+  return rows.map((t: any) => {
     const user = db.select().from(users).where(eq(users.id, t.userId)).get();
     return {
       ...t,
@@ -503,7 +503,7 @@ export async function adminRejectDeposit(
 export function listRecentPrices() {
   const cached = listCachedLatestPrices();
   if (cached.length) return cached;
-  return getMockPrices().map((p) => ({
+  return getMockPrices().map((p: any) => ({
     id: p.asset,
     asset: p.asset,
     priceUsdCents: p.priceUsdCents,

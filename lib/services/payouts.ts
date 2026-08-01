@@ -186,7 +186,7 @@ export function listAdminWithdrawals(actorId: string) {
     .orderBy(desc(payouts.createdAt))
     .all();
 
-  return rows.map((p) => {
+  return rows.map((p: any) => {
     const user = db.select().from(users).where(eq(users.id, p.userId)).get();
     return {
       ...p,

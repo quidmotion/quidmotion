@@ -11,7 +11,7 @@ export default async function AdminKycPage() {
   const pending = listQueue(session!.user.id);
   const db = getDb();
 
-  const enriched = pending.map((k) => {
+  const enriched = pending.map((k: any) => {
     const user = db.select().from(users).where(eq(users.id, k.userId)).get();
     let paths: string[] = [];
     try {
@@ -43,7 +43,7 @@ export default async function AdminKycPage() {
           {enriched.length === 0 && (
             <p className="text-sm text-white/40">Queue is empty.</p>
           )}
-          {enriched.map((k) => (
+          {enriched.map((k: any) => (
             <div
               key={k.id}
               className="rounded-xl border border-white/8 bg-white/5 p-4"
@@ -85,7 +85,7 @@ export default async function AdminKycPage() {
                 <div className="mt-3">
                   <div className="text-xs uppercase text-white/40">Documents</div>
                   <div className="mt-1 flex flex-wrap gap-2">
-                    {k.paths.map((rel) => (
+                    {k.paths.map((rel: any) => (
                       <a
                         key={rel}
                         href={`/api/uploads/${rel}`}

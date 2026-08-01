@@ -26,14 +26,18 @@ export function logEvent(input: {
     .run();
 }
 
-export function listAudit(actorId: string, limit = 100) {
+import type { InferSelectModel } from "drizzle-orm";
+
+export type AuditEvent = InferSelectModel<typeof auditEvents>;
+
+export function listAudit(actorId: string, limit = 100): AuditEvent[] {
   const actor = loadActor(actorId);
   assertAdmin(actor);
   const db = getDb();
-  return db
+  return (db
     .select()
     .from(auditEvents)
     .orderBy(desc(auditEvents.createdAt))
-    .all()
+    .all() as AuditEvent[])
     .slice(0, limit);
 }

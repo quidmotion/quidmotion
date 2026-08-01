@@ -20,7 +20,7 @@ export default async function InvestmentsPage() {
   const inv = listUserInvestments(session.user.id, session.user.id);
   const plans = listPlans();
   const summary = getPortfolioSummary(session.user.id, session.user.id);
-  const planById = Object.fromEntries(plans.map((p) => [p.id, p]));
+  const planById = Object.fromEntries(plans.map((p: any) => [p.id, p]));
 
   async function changeLockupAction(formData: FormData) {
     "use server";
@@ -64,7 +64,7 @@ export default async function InvestmentsPage() {
             </strong>
           </p>
           <div className="grid gap-2 sm:grid-cols-3">
-            {summary.growth.tiers.map((t) => (
+            {summary.growth.tiers.map((t: any) => (
               <div
                 key={t.tier}
                 className="rounded-xl border border-white/8 bg-white/5 px-3 py-2 text-xs"
@@ -101,7 +101,7 @@ export default async function InvestmentsPage() {
             {inv.length === 0 && (
               <p className="pt-2 text-sm text-white/40">No investments yet.</p>
             )}
-            {inv.map((i) => {
+            {inv.map((i: any) => {
               const plan = planById[i.planId];
               return (
                 <div

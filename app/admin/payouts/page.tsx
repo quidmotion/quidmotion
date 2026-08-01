@@ -23,10 +23,10 @@ function statusLabel(status: string) {
 export default async function AdminPayoutsPage() {
   const session = await getAuth().getSession();
   const all = listAdminWithdrawals(session!.user.id);
-  const pending = all.filter((p) => p.status === "pending_approval");
-  const processing = all.filter((p) => p.status === "processing");
+  const pending = all.filter((p: any) => p.status === "pending_approval");
+  const processing = all.filter((p: any) => p.status === "processing");
   const history = all.filter(
-    (p) => p.status === "completed" || p.status === "rejected",
+    (p: any) => p.status === "completed" || p.status === "rejected",
   );
 
   return (
@@ -49,7 +49,7 @@ export default async function AdminPayoutsPage() {
           {pending.length === 0 && (
             <p className="text-sm text-white/40">No pending withdrawal requests.</p>
           )}
-          {pending.map((p) => (
+          {pending.map((p: any) => (
             <WithdrawalCard key={p.id} p={p} mode="pending" />
           ))}
         </IslandBody>
@@ -67,7 +67,7 @@ export default async function AdminPayoutsPage() {
               No approved withdrawals awaiting on-chain transfer.
             </p>
           )}
-          {processing.map((p) => (
+          {processing.map((p: any) => (
             <WithdrawalCard key={p.id} p={p} mode="processing" />
           ))}
         </IslandBody>
@@ -81,7 +81,7 @@ export default async function AdminPayoutsPage() {
           {history.length === 0 && (
             <p className="text-sm text-white/40">No completed or rejected items yet.</p>
           )}
-          {history.slice(0, 30).map((p) => (
+          {history.slice(0, 30).map((p: any) => (
             <div
               key={p.id}
               className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white/5 px-3 py-2 text-sm"

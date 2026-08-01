@@ -19,7 +19,7 @@ export default function AdminContentPage() {
           <span className="font-medium">Documents</span>
         </IslandHeader>
         <IslandBody className="space-y-2">
-          {docs.map((d) => (
+          {docs.map((d: any) => (
             <div
               key={d.slug}
               className="flex justify-between rounded-xl bg-white/5 px-3 py-2 text-sm"
@@ -35,7 +35,7 @@ export default function AdminContentPage() {
           <span className="font-medium">FAQ entries ({faqs.length})</span>
         </IslandHeader>
         <IslandBody className="space-y-2">
-          {faqs.slice(0, 10).map((f) => (
+          {faqs.slice(0, 10).map((f: any) => (
             <div key={f.id} className="rounded-xl bg-white/5 px-3 py-2 text-sm">
               <div className="text-xs text-violet-300">{f.category}</div>
               <div>{f.question}</div>

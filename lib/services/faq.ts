@@ -14,10 +14,10 @@ export function listFaq(opts: { category?: string; q?: string } = {}): FaqEntry[
     .from(faqEntries)
     .orderBy(asc(faqEntries.sortOrder))
     .all() as FaqEntry[])
-    .filter((r) => r.published);
+    .filter((r: any) => r.published);
 
   if (opts.category) {
-    rows = rows.filter((r) => r.category === opts.category);
+    rows = rows.filter((r: any) => r.category === opts.category);
   }
   if (opts.q) {
     const q = opts.q.toLowerCase();
@@ -32,5 +32,5 @@ export function listFaq(opts: { category?: string; q?: string } = {}): FaqEntry[
 
 export function listCategories(): string[] {
   const rows = listFaq();
-  return [...new Set(rows.map((r) => r.category as string))];
+  return [...new Set(rows.map((r: any) => r.category as string))];
 }

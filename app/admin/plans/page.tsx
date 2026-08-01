@@ -18,7 +18,7 @@ export default async function AdminPlansPage() {
           <span className="font-medium">{plans.length} active plans</span>
         </IslandHeader>
         <IslandBody className="space-y-3">
-          {plans.map((p) => (
+          {plans.map((p: any) => (
             <div
               key={p.id}
               className="rounded-xl border border-white/8 bg-white/5 p-4"

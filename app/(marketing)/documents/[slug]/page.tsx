@@ -32,7 +32,7 @@ export default async function DocumentPage({ params }: Props) {
         <div className="text-xs font-semibold uppercase tracking-wide text-white/40">
           Documents
         </div>
-        {all.map((d) => (
+        {all.map((d: any) => (
           <Link
             key={d.slug}
             href={`/documents/${d.slug}`}

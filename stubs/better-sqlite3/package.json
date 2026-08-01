@@ -1,0 +1,8 @@
+{
+  "name": "better-sqlite3",
+  "version": "11.0.0-stub",
+  "description": "Stub so drizzle-orm can resolve better-sqlite3; QuidMotion uses node:sqlite DatabaseSync instead.",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "license": "MIT"
+}

@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg-base: #0a0b0f;
+  --color-bg-elevated: #12141c;
+  --color-bg-island: rgba(22, 24, 32, 0.72);
+  --color-accent-from: #8b5cf6;
+  --color-accent-to: #ec4899;
+  --color-success: #22c55e;
+  --font-display: "Segoe UI", system-ui, sans-serif;
+  --font-body: "Segoe UI", system-ui, sans-serif;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  min-height: 100vh;
+  background: var(--color-bg-base);
+  color: #f4f4f7;
+  font-family: var(--font-body);
+  antialiased: true;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Soft ambient canvas */
+.qm-canvas {
+  background:
+    radial-gradient(ellipse 80% 50% at 20% -10%, rgba(139, 92, 246, 0.18), transparent),
+    radial-gradient(ellipse 60% 40% at 90% 10%, rgba(236, 72, 153, 0.12), transparent),
+    radial-gradient(ellipse 50% 30% at 50% 100%, rgba(34, 197, 94, 0.06), transparent),
+    #0a0b0f;
+}
+
+.qm-canvas-photo {
+  background:
+    linear-gradient(180deg, rgba(10, 11, 15, 0.75), rgba(10, 11, 15, 0.92)),
+    radial-gradient(ellipse at 30% 20%, rgba(139, 92, 246, 0.15), transparent 50%),
+    #0a0b0f;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+}

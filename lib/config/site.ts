@@ -1,0 +1,41 @@
+export const siteConfig = {
+  name: process.env.NEXT_PUBLIC_SITE_NAME ?? "QuidMotion",
+  tagline: "Real Estate Investing, Powered by Crypto",
+  description:
+    "Institutional-grade real estate expertise with the speed and accessibility of crypto rails.",
+  url: process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
+  supportEmail: "support@quidmotion.com",
+  social: {
+    twitter: "https://twitter.com/quidmotion",
+    linkedin: "https://linkedin.com/company/quidmotion",
+  },
+  nav: [
+    { label: "Home", href: "/" },
+    { label: "Plans", href: "/plans" },
+    { label: "About", href: "/about" },
+    { label: "FAQ", href: "/faq" },
+    { label: "Documents", href: "/documents" },
+  ],
+  dashboardNav: [
+    { label: "Home", href: "/dashboard", icon: "home" },
+    { label: "Investments", href: "/dashboard/investments", icon: "invest" },
+    { label: "Deposit", href: "/dashboard/deposit", icon: "deposit" },
+    { label: "Withdraw", href: "/dashboard/withdraw", icon: "withdraw" },
+    { label: "Properties", href: "/dashboard/properties", icon: "property" },
+    { label: "Transactions", href: "/dashboard/transactions", icon: "tx" },
+    { label: "Referrals", href: "/dashboard/referrals", icon: "referral" },
+    { label: "Settings", href: "/dashboard/settings", icon: "settings" },
+  ],
+  adminNav: [
+    { label: "Overview", href: "/admin" },
+    { label: "Users", href: "/admin/users" },
+    { label: "KYC", href: "/admin/kyc" },
+    { label: "Deposits", href: "/admin/deposits" },
+    { label: "Plans", href: "/admin/plans" },
+    { label: "Withdrawals", href: "/admin/payouts" },
+    { label: "Properties", href: "/admin/properties" },
+    { label: "Settings", href: "/admin/settings" },
+    { label: "Content", href: "/admin/content" },
+    { label: "Audit", href: "/admin/audit" },
+  ],
+} as const;

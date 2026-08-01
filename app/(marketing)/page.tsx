@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Island, IslandBody } from "@/components/ui/Island";

@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { getAuth } from "@/lib/auth";
 import { listUsers, setUserStatus } from "@/lib/services/users";
 import { Island, IslandBody, IslandHeader } from "@/components/ui/Island";

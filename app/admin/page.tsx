@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { getAdminOverview } from "@/lib/services/stats";
 import { formatUsd } from "@/lib/money";

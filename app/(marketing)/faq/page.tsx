@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import type { Metadata } from "next";
 import { listFaq, listCategories } from "@/lib/services/faq";
 import { FaqClient } from "@/components/marketing/FaqClient";

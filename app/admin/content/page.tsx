@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { listDocuments } from "@/lib/services/documents";
 import { listFaq } from "@/lib/services/faq";
 import { Island, IslandBody, IslandHeader } from "@/components/ui/Island";

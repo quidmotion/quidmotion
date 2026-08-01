@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { getAuth } from "@/lib/auth";
 import { listPlans } from "@/lib/services/investments";
 import { formatUsd } from "@/lib/money";

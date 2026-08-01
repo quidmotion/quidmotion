@@ -87,15 +87,14 @@ async function createSessionForUser(
   const expiresAt = new Date(Date.now() + sessionTtlMs());
   const createdAt = nowIso();
 
-  db.insert(sessions)
+  await db.insert(sessions)
     .values({
       id: sessionId,
       userId: user.id,
       tokenHash: hashToken(opaque),
       expiresAt: expiresAt.toISOString(),
       createdAt,
-    })
-    .run();
+    });
 
   const seal = await mintSealedCookie({
     sub: user.id,
@@ -112,18 +111,19 @@ async function createSessionForUser(
   };
 }
 
-function resolveSessionFromToken(token: string | null): Session | null {
+async function resolveSessionFromToken(token: string | null): Promise<Session | null> {
   if (!token) return null;
   const db = getDb();
-  const row = db
+  const rows = (await db
     .select()
     .from(sessions)
-    .where(eq(sessions.tokenHash, hashToken(token)))
-    .get();
+    .where(eq(sessions.tokenHash, hashToken(token)))) as any[];
+  const row = rows[0];
   if (!row) return null;
   if (new Date(row.expiresAt).getTime() < Date.now()) return null;
 
-  const user = db.select().from(users).where(eq(users.id, row.userId)).get();
+  const userRows = (await db.select().from(users).where(eq(users.id, row.userId))) as any[];
+  const user = userRows[0];
   if (!user || user.status === "suspended") return null;
 
   return {
@@ -144,12 +144,11 @@ export function createLocalAuth(): AuthAdapter {
           "Valid email and password (8+ chars) required",
         );
       }
-      const existing = db
+      const existingRows = (await db
         .select()
         .from(users)
-        .where(eq(users.email, email))
-        .get();
-      if (existing) {
+        .where(eq(users.email, email))) as any[];
+      if (existingRows[0]) {
         throw new AppError("CONFLICT", "Email already registered", 409);
       }
 
@@ -160,15 +159,14 @@ export function createLocalAuth(): AuthAdapter {
 
       let referredBy: string | null = null;
       if (input.referralCode) {
-        const ref = db
+        const refRows = (await db
           .select()
           .from(users)
-          .where(eq(users.referralCode, input.referralCode.toUpperCase()))
-          .get();
-        if (ref) referredBy = ref.id;
+          .where(eq(users.referralCode, input.referralCode.toUpperCase()))) as any[];
+        if (refRows[0]) referredBy = refRows[0].id;
       }
 
-      db.insert(users)
+      await db.insert(users)
         .values({
           id,
           email,
@@ -181,26 +179,25 @@ export function createLocalAuth(): AuthAdapter {
           referredBy,
           createdAt,
           updatedAt: createdAt,
-        })
-        .run();
+        });
 
-      db.insert(userBalances)
+      await db.insert(userBalances)
         .values({
           userId: id,
           availableCents: 0,
           lockedCents: 0,
           updatedAt: createdAt,
-        })
-        .run();
+        });
 
-      const user = db.select().from(users).where(eq(users.id, id)).get()!;
-      return createSessionForUser(user);
+      const userRows = (await db.select().from(users).where(eq(users.id, id))) as any[];
+      return createSessionForUser(userRows[0]!);
     },
 
     async login(input: Credentials): Promise<Session> {
       const db = getDb();
       const email = input.email.trim().toLowerCase();
-      const user = db.select().from(users).where(eq(users.email, email)).get();
+      const userRows = (await db.select().from(users).where(eq(users.email, email))) as any[];
+      const user = userRows[0];
       if (!user?.passwordHash) {
         throw new AppError("UNAUTHORIZED", "Invalid email or password", 401);
       }
@@ -218,7 +215,7 @@ export function createLocalAuth(): AuthAdapter {
       const token = jar.get(SESSION_COOKIE)?.value;
       if (token) {
         const db = getDb();
-        db.delete(sessions).where(eq(sessions.tokenHash, hashToken(token))).run();
+        await db.delete(sessions).where(eq(sessions.tokenHash, hashToken(token)));
       }
       await clearSessionCookies();
     },
@@ -245,26 +242,25 @@ export function createLocalAuth(): AuthAdapter {
 
     async requestPasswordReset(email: string): Promise<void> {
       const db = getDb();
-      const user = db
+      const userRows = (await db
         .select()
         .from(users)
-        .where(eq(users.email, email.trim().toLowerCase()))
-        .get();
+        .where(eq(users.email, email.trim().toLowerCase()))) as any[];
+      const user = userRows[0];
       // Always succeed to avoid email enumeration
       if (!user) return;
 
       const raw = randomBytes(32).toString("hex");
       const id = randomUUID();
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-      db.insert(passwordResetTokens)
+      await db.insert(passwordResetTokens)
         .values({
           id,
           userId: user.id,
           tokenHash: hashToken(raw),
           expiresAt,
           createdAt: nowIso(),
-        })
-        .run();
+        });
 
       const base = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
       console.info(`[auth] reset link: ${base}/reset-password?token=${raw}`);
@@ -275,7 +271,7 @@ export function createLocalAuth(): AuthAdapter {
         throw new AppError("VALIDATION", "Password must be at least 8 characters");
       }
       const db = getDb();
-      const row = db
+      const tokenRows = (await db
         .select()
         .from(passwordResetTokens)
         .where(
@@ -284,21 +280,19 @@ export function createLocalAuth(): AuthAdapter {
             isNull(passwordResetTokens.usedAt),
             gt(passwordResetTokens.expiresAt, nowIso()),
           ),
-        )
-        .get();
+        )) as any[];
+      const row = tokenRows[0];
       if (!row) {
         throw new AppError("VALIDATION", "Invalid or expired reset token");
       }
       const passwordHash = hashPassword(newPassword);
-      db.update(users)
+      await db.update(users)
         .set({ passwordHash, updatedAt: nowIso() })
-        .where(eq(users.id, row.userId))
-        .run();
-      db.update(passwordResetTokens)
+        .where(eq(users.id, row.userId));
+      await db.update(passwordResetTokens)
         .set({ usedAt: nowIso() })
-        .where(eq(passwordResetTokens.id, row.id))
-        .run();
-      db.delete(sessions).where(eq(sessions.userId, row.userId)).run();
+        .where(eq(passwordResetTokens.id, row.id));
+      await db.delete(sessions).where(eq(sessions.userId, row.userId));
     },
   };
 }

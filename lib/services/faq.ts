@@ -26,7 +26,7 @@ export function listFaq(opts: { category?: string; q?: string } = {}) {
   return rows;
 }
 
-export function listCategories() {
+export function listCategories(): string[] {
   const rows = listFaq();
-  return [...new Set(rows.map((r) => r.category))];
+  return [...new Set(rows.map((r) => r.category as string))];
 }

@@ -63,24 +63,24 @@ export default async function DashboardPage() {
   );
 
   return (
-    <div className="space-y-4 pb-8">
+    <div className="space-y-3 pb-4 sm:space-y-4 sm:pb-8">
       {/* Top bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-1">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-0.5 sm:gap-3 sm:px-1">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
             Hi {firstName} 👋
           </h1>
-          <p className="text-sm text-white/45">
+          <p className="text-xs text-white/45 sm:text-sm">
             Welcome back, here&apos;s what&apos;s happening with your portfolio.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <Link href="/dashboard/deposit">
             <Button size="sm">Deposit</Button>
           </Link>
           <Link
             href="/dashboard/investments"
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-pink-500 text-white shadow-lg shadow-violet-500/30"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-pink-500 text-white shadow-lg shadow-violet-500/30 sm:h-10 sm:w-10"
             aria-label="Invest"
           >
             <Plus className="h-5 w-5" />
@@ -93,16 +93,16 @@ export default async function DashboardPage() {
         <div className="space-y-4 lg:col-span-8">
           <Island>
             <IslandBody className="pt-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+                <div className="min-w-0">
                   <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-white/40">
                     Total portfolio
                     <Eye className="h-3.5 w-3.5" />
                   </div>
-                  <div className="mt-1 text-3xl font-semibold tabular-nums tracking-tight sm:text-4xl">
+                  <div className="mt-1 text-2xl font-semibold tabular-nums tracking-tight sm:text-3xl md:text-4xl">
                     {formatUsd(summary.totalValueCents)}
                   </div>
-                  <div className="mt-2 flex items-center gap-2">
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
                     <Badge tone={gain >= 0 ? "success" : "danger"}>
                       {gain >= 0 ? "+" : ""}
                       {formatUsd(gain)} ({gainPct >= 0 ? "+" : ""}
@@ -111,19 +111,21 @@ export default async function DashboardPage() {
                     <span className="text-xs text-white/35">7D</span>
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-1 rounded-full bg-white/5 p-1">
-                  {["1D", "7D", "6M", "YTD", "1Y", "All"].map((t: any) => (
-                    <span
-                      key={t}
-                      className={
-                        t === "7D"
-                          ? "rounded-full bg-white/15 px-2.5 py-1 text-xs"
-                          : "rounded-full px-2.5 py-1 text-xs text-white/45"
-                      }
-                    >
-                      {t}
-                    </span>
-                  ))}
+                <div className="-mx-1 max-w-full overflow-x-auto px-1 sm:mx-0 sm:overflow-visible sm:px-0">
+                  <div className="flex w-max gap-1 rounded-full bg-white/5 p-1 sm:w-auto sm:flex-wrap">
+                    {["1D", "7D", "6M", "YTD", "1Y", "All"].map((t: any) => (
+                      <span
+                        key={t}
+                        className={
+                          t === "7D"
+                            ? "rounded-full bg-white/15 px-2.5 py-1 text-xs"
+                            : "rounded-full px-2.5 py-1 text-xs text-white/45"
+                        }
+                      >
+                        {t}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               </div>
             </IslandBody>
@@ -191,7 +193,7 @@ export default async function DashboardPage() {
           <Island>
             <IslandBody className="pt-5">
               <div className="text-sm font-medium">Cash available</div>
-              <div className="mt-1 text-2xl font-semibold tabular-nums">
+              <div className="mt-1 text-xl font-semibold tabular-nums sm:text-2xl">
                 {formatUsd(balance.availableCents)}
               </div>
               <p className="mt-1 text-xs text-white/40">
@@ -282,11 +284,11 @@ export default async function DashboardPage() {
             </Link>
           </IslandHeader>
           <IslandBody>
-            <div className="flex gap-3 overflow-x-auto pb-1">
+            <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1 snap-x snap-mandatory">
               {properties.map((p: any) => (
                 <div
                   key={p.id}
-                  className="min-w-[200px] rounded-xl border border-white/8 bg-white/5 p-3"
+                  className="min-w-[min(200px,75vw)] shrink-0 snap-start rounded-xl border border-white/8 bg-white/5 p-3"
                 >
                   <div className="text-sm font-medium">{p.name}</div>
                   <div className="text-xs text-white/40">{p.location}</div>

@@ -36,10 +36,10 @@ export default async function DepositPage() {
   }
 
   return (
-    <div className="mx-auto max-w-xl space-y-4 pb-8">
+    <div className="mx-auto max-w-xl space-y-3 pb-4 sm:space-y-4 sm:pb-8">
       <div>
-        <h1 className="text-2xl font-semibold">Deposit</h1>
-        <p className="text-sm text-white/45">
+        <h1 className="text-xl font-semibold sm:text-2xl">Deposit</h1>
+        <p className="text-xs text-white/45 sm:text-sm">
           Send crypto to the platform wallet, then submit a deposit report.
           Balance is credited after admin confirmation.
         </p>

@@ -14,18 +14,65 @@ export default async function TransactionsPage() {
   });
 
   return (
-    <div className="space-y-4 pb-8">
+    <div className="space-y-3 pb-4 sm:space-y-4 sm:pb-8">
       <div>
-        <h1 className="text-2xl font-semibold">Transactions</h1>
-        <p className="text-sm text-white/45">Deposits, investments, and payouts.</p>
+        <h1 className="text-xl font-semibold sm:text-2xl">Transactions</h1>
+        <p className="text-xs text-white/45 sm:text-sm">
+          Deposits, investments, and payouts.
+        </p>
       </div>
       <Island>
         <IslandHeader>
           <span className="font-medium">History</span>
         </IslandHeader>
         <IslandBody>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+          {/* Mobile card list */}
+          <div className="space-y-2 sm:hidden">
+            {items.map((tx: any) => (
+              <div
+                key={tx.id}
+                className="rounded-xl border border-white/8 bg-white/5 px-3 py-2.5"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium capitalize">
+                      {tx.type}
+                    </div>
+                    <div className="text-xs text-white/40">
+                      {tx.createdAt.slice(0, 10)} · {tx.asset}
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <div className="tabular-nums text-sm font-medium">
+                      {formatUsd(tx.amountCents)}
+                    </div>
+                    <div className="mt-1 flex justify-end">
+                      <Badge
+                        tone={
+                          tx.status === "confirmed"
+                            ? "success"
+                            : tx.status === "failed"
+                              ? "danger"
+                              : "neutral"
+                        }
+                      >
+                        {tx.status}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {items.length === 0 && (
+              <p className="py-6 text-center text-sm text-white/40">
+                No transactions yet.
+              </p>
+            )}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden overflow-x-auto sm:block">
+            <table className="w-full min-w-[32rem] text-left text-sm">
               <thead className="text-xs uppercase text-white/40">
                 <tr>
                   <th className="pb-2 pr-4">Date</th>

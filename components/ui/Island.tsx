@@ -26,7 +26,10 @@ export function IslandHeader({
 }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("flex items-center justify-between gap-3 px-5 pt-5 pb-2", className)}
+      className={cn(
+        "flex flex-wrap items-center justify-between gap-2 px-4 pt-4 pb-2 sm:gap-3 sm:px-5 sm:pt-5",
+        className,
+      )}
       {...props}
     >
       {children}
@@ -40,7 +43,7 @@ export function IslandBody({
   ...props
 }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("px-5 pb-5", className)} {...props}>
+    <div className={cn("px-4 pb-4 sm:px-5 sm:pb-5", className)} {...props}>
       {children}
     </div>
   );

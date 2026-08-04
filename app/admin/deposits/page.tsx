@@ -26,8 +26,8 @@ export default async function AdminDepositsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Deposits</h1>
-        <p className="text-sm text-white/45">
+        <h1 className="text-xl font-semibold sm:text-2xl">Deposits</h1>
+        <p className="text-xs text-white/45 sm:text-sm">
           Users report transfers to platform wallets. Verify on-chain, then
           confirm to credit their balance (or reject if not found).
         </p>
@@ -81,7 +81,9 @@ export default async function AdminDepositsPage() {
               {typeof d.meta?.platformAddress === "string" && (
                 <p className="mt-2 text-xs text-white/35">
                   Expected platform wallet:{" "}
-                  <code className="text-white/50">{d.meta.platformAddress}</code>
+                  <code className="break-all text-white/50">
+                    {d.meta.platformAddress}
+                  </code>
                 </p>
               )}
 

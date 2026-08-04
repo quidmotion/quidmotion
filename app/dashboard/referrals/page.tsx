@@ -23,17 +23,19 @@ export default async function ReferralsPage() {
   const rewards = await getRewards(session.user.id, session.user.id);
 
   return (
-    <div className="mx-auto max-w-2xl space-y-4 pb-8">
+    <div className="mx-auto max-w-2xl space-y-3 pb-4 sm:space-y-4 sm:pb-8">
       <div>
-        <h1 className="text-2xl font-semibold">Referrals & rewards</h1>
-        <p className="text-sm text-white/45">
+        <h1 className="text-xl font-semibold sm:text-2xl">
+          Referrals & rewards
+        </h1>
+        <p className="text-xs text-white/45 sm:text-sm">
           Share your code and earn when friends invest.
         </p>
       </div>
       <Island>
         <IslandBody className="pt-5 text-center">
           <div className="text-xs uppercase text-white/40">Your code</div>
-          <div className="mt-2 text-3xl font-semibold tracking-widest text-violet-300">
+          <div className="mt-2 break-all text-2xl font-semibold tracking-widest text-violet-300 sm:text-3xl">
             {rewards.referralCode}
           </div>
         </IslandBody>

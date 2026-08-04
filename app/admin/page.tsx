@@ -28,18 +28,20 @@ export default async function AdminOverviewPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Admin overview</h1>
+        <h1 className="text-xl font-semibold sm:text-2xl">Admin overview</h1>
         <p className="text-sm text-white/45">Platform health at a glance.</p>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-5">
         {cards.map((c: any) => (
-          <Link key={c.label} href={c.href}>
+          <Link key={c.label} href={c.href} className="min-w-0">
             <Island className="h-full transition hover:border-violet-500/30">
-              <IslandBody className="pt-5">
-                <div className="text-xs uppercase text-white/40">{c.label}</div>
-                <div className="mt-1 text-2xl font-semibold tabular-nums">
+              <IslandBody className="pt-4 sm:pt-5">
+                <div className="text-[10px] uppercase leading-tight text-white/40 sm:text-xs">
+                  {c.label}
+                </div>
+                <div className="mt-1 break-all text-lg font-semibold tabular-nums sm:text-2xl">
                   {c.value}
                 </div>
               </IslandBody>

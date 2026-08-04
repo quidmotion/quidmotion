@@ -34,8 +34,8 @@ export default async function AdminKycPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold">KYC queue</h1>
-        <p className="text-sm text-white/45">
+        <h1 className="text-xl font-semibold sm:text-2xl">KYC queue</h1>
+        <p className="text-xs text-white/45 sm:text-sm">
           Review live identity submissions and uploaded documents.
         </p>
       </div>

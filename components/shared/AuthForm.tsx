@@ -147,9 +147,8 @@ export function AuthForm({
 
         {mode === "login" ? (
           <p className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-white/40">
-            Demo: investor@quidmotion.com / password123
-            <br />
-            Admin: admin@quidmotion.com / password123
+            example@example.com
+            
           </p>
         ) : null}
       </IslandBody>

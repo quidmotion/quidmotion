@@ -18,8 +18,8 @@ export default async function AdminPropertiesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Featured properties</h1>
-        <p className="text-sm text-white/45">
+        <h1 className="text-xl font-semibold sm:text-2xl">Featured properties</h1>
+        <p className="text-xs text-white/45 sm:text-sm">
           Add and manage live deals shown on the investor dashboard.
         </p>
       </div>
@@ -144,7 +144,7 @@ export default async function AdminPropertiesPage() {
 
               <form
                 action={updatePropertyAction}
-                className="mt-4 grid gap-2 border-t border-white/8 pt-3 sm:grid-cols-4"
+                className="mt-4 grid gap-2 border-t border-white/8 pt-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
               >
                 <input type="hidden" name="id" value={p.id} />
                 <div>

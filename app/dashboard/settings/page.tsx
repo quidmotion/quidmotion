@@ -21,10 +21,12 @@ export default async function SettingsPage() {
           : "neutral";
 
   return (
-    <div className="mx-auto max-w-xl space-y-4 pb-8">
+    <div className="mx-auto max-w-xl space-y-3 pb-4 sm:space-y-4 sm:pb-8">
       <div>
-        <h1 className="text-2xl font-semibold">Account settings</h1>
-        <p className="text-sm text-white/45">Profile, KYC, and security.</p>
+        <h1 className="text-xl font-semibold sm:text-2xl">Account settings</h1>
+        <p className="text-xs text-white/45 sm:text-sm">
+          Profile, KYC, and security.
+        </p>
       </div>
 
       <Island>
@@ -32,21 +34,23 @@ export default async function SettingsPage() {
           <span className="font-medium">Profile</span>
         </IslandHeader>
         <IslandBody className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-white/40">Name</span>
-            <span>{user.name}</span>
+          <div className="flex flex-col gap-0.5 sm:flex-row sm:justify-between sm:gap-3">
+            <span className="shrink-0 text-white/40">Name</span>
+            <span className="min-w-0 break-words sm:text-right">{user.name}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-white/40">Email</span>
-            <span>{user.email}</span>
+          <div className="flex flex-col gap-0.5 sm:flex-row sm:justify-between sm:gap-3">
+            <span className="shrink-0 text-white/40">Email</span>
+            <span className="min-w-0 break-all sm:text-right">{user.email}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-white/40">Role</span>
-            <span className="capitalize">{user.role}</span>
+          <div className="flex flex-col gap-0.5 sm:flex-row sm:justify-between sm:gap-3">
+            <span className="shrink-0 text-white/40">Role</span>
+            <span className="capitalize sm:text-right">{user.role}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-white/40">Referral code</span>
-            <span className="font-mono text-violet-300">{user.referralCode}</span>
+          <div className="flex flex-col gap-0.5 sm:flex-row sm:justify-between sm:gap-3">
+            <span className="shrink-0 text-white/40">Referral code</span>
+            <span className="font-mono text-violet-300 sm:text-right">
+              {user.referralCode}
+            </span>
           </div>
         </IslandBody>
       </Island>

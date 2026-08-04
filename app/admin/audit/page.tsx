@@ -9,7 +9,7 @@ export default async function AdminAuditPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Audit log</h1>
+      <h1 className="text-xl font-semibold sm:text-2xl">Audit log</h1>
       <Island>
         <IslandHeader>
           <span className="font-medium">Recent admin actions</span>
@@ -25,9 +25,9 @@ export default async function AdminAuditPage() {
               key={e.id}
               className="rounded-xl border border-white/8 bg-white/5 px-3 py-2 text-sm"
             >
-              <div className="flex justify-between gap-2">
-                <span className="font-medium">{e.action}</span>
-                <span className="text-xs text-white/40">
+              <div className="flex flex-col gap-0.5 sm:flex-row sm:justify-between sm:gap-2">
+                <span className="min-w-0 break-words font-medium">{e.action}</span>
+                <span className="shrink-0 text-xs text-white/40">
                   {e.createdAt.slice(0, 19).replace("T", " ")}
                 </span>
               </div>

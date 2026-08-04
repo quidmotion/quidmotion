@@ -44,6 +44,12 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* Prevent horizontal page overflow from charts / wide tables */
+html,
+body {
+  overflow-x: hidden;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;

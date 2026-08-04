@@ -33,8 +33,8 @@ export default async function AdminPayoutsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Withdrawals</h1>
-        <p className="text-sm text-white/45">
+        <h1 className="text-xl font-semibold sm:text-2xl">Withdrawals</h1>
+        <p className="text-xs text-white/45 sm:text-sm">
           Review requests, send funds manually to the user&apos;s address, then
           mark completed.
         </p>

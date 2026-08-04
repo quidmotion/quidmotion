@@ -30,8 +30,8 @@ export default async function AdminSettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Platform settings</h1>
-        <p className="text-sm text-white/45">
+        <h1 className="text-xl font-semibold sm:text-2xl">Platform settings</h1>
+        <p className="text-xs text-white/45 sm:text-sm">
           Deposit wallets, official emails, live prices, and growth controls.
         </p>
       </div>
@@ -159,11 +159,13 @@ export default async function AdminSettingsPage() {
 
         <Island>
           <IslandHeader>
-            <span className="font-medium">Manage Portfolio APY Rules & Lock-up Multipliers</span>
+            <span className="min-w-0 text-sm font-medium sm:text-base">
+              Portfolio APY & lock-up
+            </span>
             <form action={runGrowthAccrualAction}>
               <button
                 type="submit"
-                className="rounded-full bg-white/10 px-3 py-1 text-xs text-white/70 hover:bg-white/15"
+                className="shrink-0 rounded-full bg-white/10 px-3 py-1 text-xs text-white/70 hover:bg-white/15"
               >
                 Run accrual
               </button>
@@ -182,7 +184,7 @@ export default async function AdminSettingsPage() {
                   <div className="font-medium text-white text-sm capitalize">
                     {r.tier.replace("tier_", "Tier ≥ $").replace("500", "500").replace("2500", "2,500").replace("10000", "10,000")}
                   </div>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                     <div>
                       <Label htmlFor={`current_${r.tier}`} className="text-[11px]">Current APY %</Label>
                       <Input
@@ -223,7 +225,7 @@ export default async function AdminSettingsPage() {
               <div className="pt-2 text-xs font-semibold uppercase text-violet-300">
                 Lock-up Multipliers (% of APY)
               </div>
-              <div className="grid grid-cols-3 gap-2 text-xs">
+              <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-3">
                 <div>
                   <Label htmlFor="mult_90" className="text-[11px]">90-Day Lockup (%)</Label>
                   <Input
@@ -259,8 +261,11 @@ export default async function AdminSettingsPage() {
                 </div>
               </div>
 
-              <Button type="submit" className="w-full">
-                Save APY Rules & Recalculate Portfolio Growth
+              <Button type="submit" className="w-full text-center leading-tight">
+                <span className="sm:hidden">Save APY rules</span>
+                <span className="hidden sm:inline">
+                  Save APY Rules & Recalculate Portfolio Growth
+                </span>
               </Button>
             </form>
           </IslandBody>

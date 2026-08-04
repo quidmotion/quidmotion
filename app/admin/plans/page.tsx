@@ -13,7 +13,7 @@ export default async function AdminPlansPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Investment plans</h1>
+      <h1 className="text-xl font-semibold sm:text-2xl">Investment plans</h1>
       <Island>
         <IslandHeader>
           <span className="font-medium">{plans.length} active plans</span>
@@ -24,8 +24,8 @@ export default async function AdminPlansPage() {
               key={p.id}
               className="rounded-xl border border-white/8 bg-white/5 p-4"
             >
-              <div className="flex items-center justify-between">
-                <h2 className="font-medium">{p.name}</h2>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="min-w-0 break-words font-medium">{p.name}</h2>
                 <Badge tone="accent">{p.riskTier}</Badge>
               </div>
               <p className="mt-1 text-sm text-white/50">{p.description}</p>

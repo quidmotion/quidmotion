@@ -33,10 +33,10 @@ export default async function InvestmentsPage() {
   }
 
   return (
-    <div className="space-y-4 pb-8">
+    <div className="space-y-3 pb-4 sm:space-y-4 sm:pb-8">
       <div>
-        <h1 className="text-2xl font-semibold">Investments</h1>
-        <p className="text-sm text-white/45">
+        <h1 className="text-xl font-semibold sm:text-2xl">Investments</h1>
+        <p className="text-xs text-white/45 sm:text-sm">
           Active positions with automatic portfolio growth. Only invested
           principal earns yield; lock-up tier sets your share of default APY.
         </p>

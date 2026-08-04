@@ -10,8 +10,8 @@ export default async function AdminContentPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Content</h1>
-        <p className="text-sm text-white/45">
+        <h1 className="text-xl font-semibold sm:text-2xl">Content</h1>
+        <p className="text-xs text-white/45 sm:text-sm">
           Documents and FAQ (CMS write path uses DB overrides in production).
         </p>
       </div>
@@ -23,10 +23,10 @@ export default async function AdminContentPage() {
           {docs.map((d: any) => (
             <div
               key={d.slug}
-              className="flex justify-between rounded-xl bg-white/5 px-3 py-2 text-sm"
+              className="flex flex-col gap-0.5 rounded-xl bg-white/5 px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3"
             >
-              <span>{d.title}</span>
-              <span className="text-white/40">/{d.slug}</span>
+              <span className="min-w-0 break-words">{d.title}</span>
+              <span className="shrink-0 text-white/40">/{d.slug}</span>
             </div>
           ))}
         </IslandBody>

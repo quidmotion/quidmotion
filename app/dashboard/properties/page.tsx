@@ -13,10 +13,12 @@ export default async function PropertiesPage() {
   const properties = await listFeatured(20);
 
   return (
-    <div className="space-y-4 pb-8">
+    <div className="space-y-3 pb-4 sm:space-y-4 sm:pb-8">
       <div>
-        <h1 className="text-2xl font-semibold">Properties & live deals</h1>
-        <p className="text-sm text-white/45">
+        <h1 className="text-xl font-semibold sm:text-2xl">
+          Properties & live deals
+        </h1>
+        <p className="text-xs text-white/45 sm:text-sm">
           Featured real estate opportunities managed by the QuidMotion team.
         </p>
       </div>

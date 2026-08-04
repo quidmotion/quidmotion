@@ -32,10 +32,10 @@ export default async function WithdrawPage() {
   );
 
   return (
-    <div className="mx-auto max-w-xl space-y-4 pb-8">
+    <div className="mx-auto max-w-xl space-y-3 pb-4 sm:space-y-4 sm:pb-8">
       <div>
-        <h1 className="text-2xl font-semibold">Withdraw</h1>
-        <p className="text-sm text-white/45">
+        <h1 className="text-xl font-semibold sm:text-2xl">Withdraw</h1>
+        <p className="text-xs text-white/45 sm:text-sm">
           KYC-approved accounts only. Provide a withdrawal address; admin review
           is required before funds are sent.
         </p>

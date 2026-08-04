@@ -9,7 +9,7 @@ export function Island({
   return (
     <div
       className={cn(
-        "rounded-2xl border border-white/10 bg-[rgba(22,24,32,0.72)] backdrop-blur-xl shadow-[0_8px_24px_rgba(0,0,0,0.35)]",
+        "min-w-0 max-w-full rounded-2xl border border-white/10 bg-[rgba(22,24,32,0.72)] backdrop-blur-xl shadow-[0_8px_24px_rgba(0,0,0,0.35)]",
         className,
       )}
       {...props}

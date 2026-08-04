@@ -19,8 +19,8 @@ export default async function DashboardLayout({
   const { user } = session;
 
   return (
-    <div className="qm-canvas-photo min-h-screen">
-      <div className="mx-auto flex min-h-screen max-w-[1400px] gap-3 p-2 sm:gap-4 sm:p-3 md:p-4">
+    <div className="qm-canvas-photo min-h-screen w-full overflow-x-clip">
+      <div className="mx-auto flex min-h-screen w-full max-w-[1400px] gap-3 p-2 sm:gap-4 sm:p-3 md:p-4">
         {/* Desktop sidebar */}
         <aside className="hidden w-56 shrink-0 flex-col rounded-2xl border border-white/10 bg-black/40 p-3 backdrop-blur-xl md:flex lg:w-64">
           <Link href="/" className="mb-6 flex items-center gap-2 px-2 pt-2">
@@ -58,13 +58,15 @@ export default async function DashboardLayout({
           </div>
         </aside>
 
-        {/* Main */}
-        <div className="flex min-w-0 flex-1 flex-col">
+        {/* Main — min-w-0 + overflow clip keeps islands/charts inside the viewport */}
+        <div className="flex min-w-0 flex-1 flex-col overflow-x-clip">
           <DashboardMobileNav
             user={{ name: user.name, email: user.email, role: user.role }}
           />
           {/* Bottom nav clearance on mobile only */}
-          <main className="flex-1 pb-20 md:pb-0">{children}</main>
+          <main className="min-w-0 flex-1 overflow-x-clip pb-20 md:pb-0">
+            {children}
+          </main>
         </div>
       </div>
     </div>

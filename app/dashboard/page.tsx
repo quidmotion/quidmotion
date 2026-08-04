@@ -63,7 +63,7 @@ export default async function DashboardPage() {
   );
 
   return (
-    <div className="space-y-3 pb-4 sm:space-y-4 sm:pb-8">
+    <div className="w-full min-w-0 max-w-full space-y-3 pb-4 sm:space-y-4 sm:pb-8">
       {/* Top bar */}
       <div className="flex flex-wrap items-center justify-between gap-2 px-0.5 sm:gap-3 sm:px-1">
         <div className="min-w-0 flex-1">
@@ -88,9 +88,9 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-12">
+      <div className="grid min-w-0 gap-4 lg:grid-cols-12">
         {/* Balance + chart column */}
-        <div className="space-y-4 lg:col-span-8">
+        <div className="min-w-0 space-y-4 lg:col-span-8">
           <Island>
             <IslandBody className="pt-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
@@ -143,7 +143,7 @@ export default async function DashboardPage() {
               </div>
               <Badge tone="accent">Live chart</Badge>
             </IslandHeader>
-            <IslandBody>
+            <IslandBody className="min-w-0 overflow-x-clip">
               <PortfolioChart data={summary.series} />
             </IslandBody>
           </Island>
@@ -189,7 +189,7 @@ export default async function DashboardPage() {
         </div>
 
         {/* Right column */}
-        <div className="space-y-4 lg:col-span-4">
+        <div className="min-w-0 space-y-4 lg:col-span-4">
           <Island>
             <IslandBody className="pt-5">
               <div className="text-sm font-medium">Cash available</div>
@@ -273,29 +273,32 @@ export default async function DashboardPage() {
         </div>
 
         {/* Bottom row */}
-        <Island className="lg:col-span-8">
+        <Island className="min-w-0 lg:col-span-8">
           <IslandHeader>
             <span className="text-sm font-medium">Featured properties</span>
             <Link
               href="/dashboard/properties"
-              className="text-xs text-violet-300"
+              className="shrink-0 text-xs text-violet-300"
             >
               View all
             </Link>
           </IslandHeader>
-          <IslandBody>
-            <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1 snap-x snap-mandatory">
+          <IslandBody className="min-w-0">
+            {/* Mobile: stacked full-width cards so names never clip off-screen */}
+            <div className="space-y-3 sm:hidden">
               {properties.map((p: any) => (
                 <div
                   key={p.id}
-                  className="min-w-[min(200px,75vw)] shrink-0 snap-start rounded-xl border border-white/8 bg-white/5 p-3"
+                  className="rounded-xl border border-white/8 bg-white/5 p-3"
                 >
-                  <div className="text-sm font-medium">{p.name}</div>
-                  <div className="text-xs text-white/40">{p.location}</div>
+                  <div className="break-words text-sm font-medium">{p.name}</div>
+                  <div className="break-words text-xs text-white/40">
+                    {p.location}
+                  </div>
                   <div className="mt-2 text-xs text-emerald-400">
                     {(p.expectedApyBps / 100).toFixed(1)}% expected
                   </div>
-                  <div className="mt-1 text-xs text-white/35">
+                  <div className="mt-1 break-words text-xs text-white/35">
                     {formatUsd(p.raisedCents)} / {formatUsd(p.targetRaiseCents)}
                   </div>
                 </div>
@@ -304,10 +307,39 @@ export default async function DashboardPage() {
                 <p className="text-sm text-white/40">No live deals yet.</p>
               )}
             </div>
+
+            {/* sm+: horizontal scroller constrained to the island width */}
+            <div className="hidden min-w-0 sm:block">
+              <div className="flex gap-3 overflow-x-auto overscroll-x-contain pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {properties.map((p: any) => (
+                  <div
+                    key={p.id}
+                    className="w-52 max-w-full shrink-0 rounded-xl border border-white/8 bg-white/5 p-3"
+                  >
+                    <div className="break-words text-sm font-medium">
+                      {p.name}
+                    </div>
+                    <div className="break-words text-xs text-white/40">
+                      {p.location}
+                    </div>
+                    <div className="mt-2 text-xs text-emerald-400">
+                      {(p.expectedApyBps / 100).toFixed(1)}% expected
+                    </div>
+                    <div className="mt-1 break-words text-xs text-white/35">
+                      {formatUsd(p.raisedCents)} /{" "}
+                      {formatUsd(p.targetRaiseCents)}
+                    </div>
+                  </div>
+                ))}
+                {properties.length === 0 && (
+                  <p className="text-sm text-white/40">No live deals yet.</p>
+                )}
+              </div>
+            </div>
           </IslandBody>
         </Island>
 
-        <Island className="lg:col-span-4">
+        <Island className="min-w-0 lg:col-span-4">
           <IslandHeader>
             <span className="text-sm font-medium">Upcoming payouts</span>
           </IslandHeader>

@@ -14,13 +14,22 @@ export type LedgerType =
   | "refund"
   | "referral_reward"
   | "adjustment"
-  | "yield";
+  | "yield"
+  | "transfer_out"
+  | "transfer_in";
 
 export type UserBalance = {
   userId?: string;
   availableCents: Cents;
   lockedCents: Cents;
   updatedAt: string;
+};
+
+/** Optional Drizzle transaction / alternate executor. */
+export type DbExecutor = {
+  select: (...args: any[]) => any;
+  insert: (...args: any[]) => any;
+  update: (...args: any[]) => any;
 };
 
 function nowIso() {
@@ -45,8 +54,11 @@ function normalizeBalance(row: {
   };
 }
 
-export async function ensureBalanceRow(userId: string) {
-  const db = getDb();
+export async function ensureBalanceRow(
+  userId: string,
+  executor?: DbExecutor,
+) {
+  const db = executor ?? getDb();
   const rows = (await db
     .select()
     .from(userBalances)
@@ -61,9 +73,12 @@ export async function ensureBalanceRow(userId: string) {
   }
 }
 
-export async function getBalances(userId: string): Promise<UserBalance> {
-  await ensureBalanceRow(userId);
-  const db = getDb();
+export async function getBalances(
+  userId: string,
+  executor?: DbExecutor,
+): Promise<UserBalance> {
+  await ensureBalanceRow(userId, executor);
+  const db = executor ?? getDb();
   const rows = (await db
     .select()
     .from(userBalances)
@@ -75,6 +90,7 @@ export async function getBalances(userId: string): Promise<UserBalance> {
  * Append ledger entry and update materialized balances.
  * amountCents: positive = credit available; negative = debit available.
  * For subscribe: debit available and optionally increase locked.
+ * Pass `executor` to participate in an outer DB transaction.
  */
 export async function postLedgerEntry(input: {
   userId: string;
@@ -85,10 +101,11 @@ export async function postLedgerEntry(input: {
   refId?: string;
   note?: string;
   lockCents?: number;
+  executor?: DbExecutor;
 }) {
-  const db = getDb();
-  await ensureBalanceRow(input.userId);
-  const bal = await getBalances(input.userId);
+  const db = input.executor ?? getDb();
+  await ensureBalanceRow(input.userId, db);
+  const bal = await getBalances(input.userId, db);
   const amountCents = asCents(input.amountCents);
   const lockDelta = asCents(input.lockCents ?? 0);
   const nextAvailable = sumCents(bal.availableCents, amountCents);
@@ -138,4 +155,15 @@ export async function postLedgerEntry(input: {
     availableCents: nextAvailable,
     lockedCents: nextLocked,
   };
+}
+
+/** Run work inside a DB transaction when the adapter supports it. */
+export async function withDbTransaction<T>(
+  fn: (executor: DbExecutor) => Promise<T>,
+): Promise<T> {
+  const db = getDb() as any;
+  if (typeof db.transaction === "function") {
+    return db.transaction(async (tx: DbExecutor) => fn(tx));
+  }
+  return fn(db);
 }

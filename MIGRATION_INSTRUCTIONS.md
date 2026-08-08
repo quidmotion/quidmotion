@@ -211,7 +211,8 @@ CREATE TABLE IF NOT EXISTS ledger_entries (
   user_id      TEXT NOT NULL REFERENCES users(id),
   type         TEXT NOT NULL CHECK (type IN (
                   'deposit','subscribe','withdraw','payout','refund',
-                  'referral_reward','adjustment','yield'
+                  'referral_reward','adjustment','yield',
+                  'transfer_out','transfer_in'
                 )),
   amount_cents BIGINT NOT NULL,
   asset        TEXT NOT NULL DEFAULT 'USD',
@@ -277,7 +278,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   id           TEXT PRIMARY KEY,
   user_id      TEXT NOT NULL REFERENCES users(id),
   type         TEXT NOT NULL CHECK (type IN (
-                  'deposit','withdraw','invest','payout','fee','reward','yield'
+                  'deposit','withdraw','invest','payout','fee','reward','yield','transfer'
                 )),
   amount_cents BIGINT NOT NULL,
   asset        TEXT NOT NULL DEFAULT 'USDT',

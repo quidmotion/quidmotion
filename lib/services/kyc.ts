@@ -7,6 +7,12 @@ import { getDb } from "@/lib/db";
 import { kycSubmissions, users } from "@/lib/db/schema";
 import { AppError } from "@/lib/errors";
 import {
+  ensureKycBucket,
+  getLocalUploadsRoot,
+  loadKycObject,
+  saveKycObject,
+} from "@/lib/storage/kyc";
+import {
   assertActive,
   assertAdmin,
   assertSelfOrAdmin,
@@ -21,7 +27,7 @@ export type KycSubmitInput = {
   country: string;
   documentType: string;
   documentNumber: string;
-  /** Relative paths under data/uploads already saved by the action layer */
+  /** Storage object keys (kyc/{userId}/…) already saved by the action layer */
   documentPaths: string[];
 };
 
@@ -30,32 +36,37 @@ function nowIso() {
 }
 
 export function getUploadsRoot() {
-  return path.join(process.cwd(), "data", "uploads", "kyc");
+  return getLocalUploadsRoot();
 }
 
-/** Persist an uploaded file buffer for a user; returns relative path. */
-export function saveKycFile(
+/**
+ * Persist an uploaded file for a user.
+ * Uses Supabase Storage when configured (required on Vercel); local disk otherwise.
+ * Returns object key `kyc/{userId}/{file}`.
+ */
+export async function saveKycFile(
   userId: string,
   filename: string,
   data: Buffer,
-): string {
-  const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120);
-  const dir = path.join(getUploadsRoot(), userId);
-  fs.mkdirSync(dir, { recursive: true });
-  const stored = `${Date.now()}_${safeName}`;
-  const full = path.join(dir, stored);
-  fs.writeFileSync(full, data);
-  return path.join("kyc", userId, stored).replace(/\\/g, "/");
+  contentType?: string,
+): Promise<string> {
+  await ensureKycBucket();
+  return saveKycObject(userId, filename, data, contentType);
 }
 
+/** @deprecated Prefer loadKycDocument — kept for callers that only need a local path. */
 export function resolveUploadPath(relativePath: string): string | null {
   const cleaned = relativePath.replace(/^[/\\]+/, "").replace(/\.\./g, "");
   const full = path.join(process.cwd(), "data", "uploads", cleaned);
-  if (!full.startsWith(path.join(process.cwd(), "data", "uploads"))) {
-    return null;
-  }
+  const root = path.join(process.cwd(), "data", "uploads");
+  if (!full.startsWith(root)) return null;
   if (!fs.existsSync(full)) return null;
   return full;
+}
+
+/** Load KYC document bytes from Supabase Storage or local disk. */
+export async function loadKycDocument(relativePath: string) {
+  return loadKycObject(relativePath);
 }
 
 export async function submit(actorId: string, input: KycSubmitInput) {

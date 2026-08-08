@@ -8,6 +8,8 @@ export type ErrorCode =
   | "KYC_REQUIRED"
   | "INSUFFICIENT_BALANCE"
   | "INVALID_STATE"
+  | "STORAGE"
+  | "CONFIG"
   | "INTERNAL";
 
 export class AppError extends Error {

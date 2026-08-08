@@ -4,23 +4,49 @@ import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Input";
 import { submitKycAction } from "@/lib/actions/dashboard";
+import { compressKycFormData } from "@/lib/utils/compressImage";
+import { cn } from "@/lib/utils/cn";
+
+const fileInputClass =
+  "h-auto min-h-11 cursor-pointer py-2 file:mr-3 file:rounded-lg file:border-0 file:bg-violet-500/20 file:px-3 file:py-1 file:text-xs file:text-violet-200";
 
 export function KycForm() {
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+    setStatus(null);
     const form = e.currentTarget;
-    const fd = new FormData(form);
+    const raw = new FormData(form);
     start(async () => {
-      const res = await submitKycAction(fd);
-      if (res.error) setError(res.error);
-      else {
-        setOk(true);
-        form.reset();
+      try {
+        setStatus("Preparing documents…");
+        const fd = await compressKycFormData(raw);
+        setStatus("Uploading…");
+        const res = await submitKycAction(fd);
+        if (res.error) {
+          setError(res.error);
+          setStatus(null);
+        } else {
+          setOk(true);
+          form.reset();
+        }
+      } catch (err) {
+        const msg =
+          err instanceof Error ? err.message : "Upload failed. Please try again.";
+        // Next body-limit / network failures often surface as opaque errors
+        if (/body|413|too large|failed to fetch|network/i.test(msg)) {
+          setError(
+            "Upload failed — file may be too large or the connection dropped. Try a clearer photo under 8MB, or compress before uploading.",
+          );
+        } else {
+          setError(msg);
+        }
+        setStatus(null);
       }
     });
   }
@@ -38,9 +64,9 @@ export function KycForm() {
   return (
     <form onSubmit={onSubmit} className="space-y-4" encType="multipart/form-data">
       <p className="text-sm text-white/50">
-        Complete identity verification to invest and withdraw. Upload a
-        government-issued photo ID. Files stay on our secure local store until
-        migration to production object storage.
+        Complete identity verification to invest, transfer, and withdraw. Upload a
+        government-issued photo ID. On phones, photos are compressed before
+        upload for reliability.
       </p>
 
       <div className="grid gap-3 sm:grid-cols-2">
@@ -113,9 +139,9 @@ export function KycForm() {
             id="docFront"
             name="docFront"
             type="file"
-            accept="image/*,.pdf"
+            accept="image/*,.pdf,image/heic,image/heif,.heic,.heif"
             required
-            className="cursor-pointer file:mr-3 file:rounded-lg file:border-0 file:bg-violet-500/20 file:px-3 file:py-1 file:text-xs file:text-violet-200"
+            className={cn(fileInputClass)}
           />
         </div>
         <div>
@@ -124,8 +150,8 @@ export function KycForm() {
             id="docBack"
             name="docBack"
             type="file"
-            accept="image/*,.pdf"
-            className="cursor-pointer file:mr-3 file:rounded-lg file:border-0 file:bg-violet-500/20 file:px-3 file:py-1 file:text-xs file:text-violet-200"
+            accept="image/*,.pdf,image/heic,image/heif,.heic,.heif"
+            className={cn(fileInputClass)}
           />
         </div>
         <div>
@@ -134,12 +160,16 @@ export function KycForm() {
             id="docSelfie"
             name="docSelfie"
             type="file"
-            accept="image/*"
-            className="cursor-pointer file:mr-3 file:rounded-lg file:border-0 file:bg-violet-500/20 file:px-3 file:py-1 file:text-xs file:text-violet-200"
+            accept="image/*,image/heic,image/heif,.heic,.heif"
+            capture="user"
+            className={cn(fileInputClass)}
           />
         </div>
       </div>
 
+      {status && !error && (
+        <p className="text-sm text-violet-300">{status}</p>
+      )}
       {error && <p className="text-sm text-red-400">{error}</p>}
 
       <Button type="submit" disabled={pending} className="w-full">

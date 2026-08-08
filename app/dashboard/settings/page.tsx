@@ -64,7 +64,7 @@ export default async function SettingsPage() {
           {user.kycStatus === "approved" ? (
             <div className="space-y-2 text-sm">
               <p className="text-emerald-400">
-                You are fully verified and can invest and withdraw.
+                You are fully verified and can invest, transfer, and withdraw.
               </p>
               {latest?.fullLegalName && (
                 <p className="text-white/45">

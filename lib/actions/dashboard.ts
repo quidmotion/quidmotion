@@ -9,6 +9,7 @@ import * as investments from "@/lib/services/investments";
 import * as payouts from "@/lib/services/payouts";
 import * as kyc from "@/lib/services/kyc";
 import * as leads from "@/lib/services/leads";
+import * as transfers from "@/lib/services/transfers";
 
 export type ActionResult =
   | { ok: true; message?: string; error?: undefined }
@@ -117,6 +118,31 @@ export async function withdrawAction(
   }
 }
 
+/** Instant available-balance transfer to another KYC-approved user (by email). */
+export async function transferAction(
+  amountUsd: number,
+  toEmail: string,
+  note?: string,
+): Promise<Result> {
+  try {
+    const user = await requireUser();
+    await transfers.transferAvailableBalance(user.id, {
+      amountCents: toCents(amountUsd),
+      toEmail,
+      note,
+    });
+    revalidatePath("/dashboard");
+    revalidatePath("/dashboard/transfer");
+    revalidatePath("/dashboard/transactions");
+    return {
+      ok: true,
+      message: "Transfer completed. Funds moved to the recipient's available balance.",
+    };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
 /** Live KYC submission with identity fields + uploaded document paths. */
 export async function submitKycAction(formData: FormData): Promise<Result> {
   try {
@@ -139,7 +165,12 @@ export async function submitKycAction(formData: FormData): Promise<Result> {
             return { error: `${field} exceeds 8MB limit` };
           }
           const buf = Buffer.from(await f.arrayBuffer());
-          const rel = kyc.saveKycFile(user.id, f.name || `${field}.bin`, buf);
+          const rel = await kyc.saveKycFile(
+            user.id,
+            f.name || `${field}.bin`,
+            buf,
+            f.type || undefined,
+          );
           paths.push(rel);
         }
       }

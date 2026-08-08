@@ -18,7 +18,7 @@ export default async function TransactionsPage() {
       <div>
         <h1 className="text-xl font-semibold sm:text-2xl">Transactions</h1>
         <p className="text-xs text-white/45 sm:text-sm">
-          Deposits, investments, and payouts.
+          Deposits, transfers, investments, and payouts.
         </p>
       </div>
       <Island>

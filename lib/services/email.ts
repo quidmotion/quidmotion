@@ -19,6 +19,8 @@ export type EmailKind =
   | "kyc_submitted"
   | "kyc_approved"
   | "kyc_rejected"
+  | "transfer_sent"
+  | "transfer_received"
   | "generic";
 
 function nowIso() {
@@ -329,6 +331,50 @@ export async function notifyWithdrawalCompleted(
       <p>If you do not see the transfer on-chain shortly, contact support with your transaction reference.</p>`,
     bodyText: `Hello ${user.name},\n\nYour withdrawal of ${amount} has been completed.\nSent to: ${address}`,
     meta: { userId, amountCents, address },
+  });
+}
+
+export async function notifyTransferSent(
+  userId: string,
+  amountCents: number,
+  recipientEmail: string,
+  recipientName: string,
+) {
+  const user = await userEmail(userId);
+  if (!user) return;
+  const amount = formatUsd(amountCents);
+  await sendTransactionalEmail({
+    to: user.email,
+    subject: `Transfer sent — ${amount}`,
+    title: "Transfer sent",
+    kind: "transfer_sent",
+    bodyHtml: `<p>Hello ${user.name},</p>
+      <p>You sent <strong style="color:#f4f4f7;">${amount}</strong> from your available balance to <strong style="color:#f4f4f7;">${recipientName}</strong> (${recipientEmail}).</p>
+      <p>The transfer completed instantly. You can review it under Transactions.</p>`,
+    bodyText: `Hello ${user.name},\n\nYou sent ${amount} to ${recipientName} (${recipientEmail}). The transfer completed instantly.`,
+    meta: { userId, amountCents, recipientEmail },
+  });
+}
+
+export async function notifyTransferReceived(
+  userId: string,
+  amountCents: number,
+  senderEmail: string,
+  senderName: string,
+) {
+  const user = await userEmail(userId);
+  if (!user) return;
+  const amount = formatUsd(amountCents);
+  await sendTransactionalEmail({
+    to: user.email,
+    subject: `Transfer received — ${amount}`,
+    title: "Transfer received",
+    kind: "transfer_received",
+    bodyHtml: `<p>Hello ${user.name},</p>
+      <p>You received <strong style="color:#f4f4f7;">${amount}</strong> in available balance from <strong style="color:#f4f4f7;">${senderName}</strong> (${senderEmail}).</p>
+      <p>Funds are ready to invest or withdraw subject to platform rules.</p>`,
+    bodyText: `Hello ${user.name},\n\nYou received ${amount} from ${senderName} (${senderEmail}). Funds are in your available balance.`,
+    meta: { userId, amountCents, senderEmail },
   });
 }
 

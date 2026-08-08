@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
-import fs from "node:fs";
-import path from "node:path";
 import { getAuth, isAdmin } from "@/lib/auth";
-import { resolveUploadPath } from "@/lib/services/kyc";
+import { loadKycDocument } from "@/lib/services/kyc";
+import { guessContentType, normalizeKycObjectKey } from "@/lib/storage/kyc";
 
 export const dynamic = "force-dynamic";
 
 /**
  * Serve KYC uploads to the owning user or admins only.
  * Path: /api/uploads/kyc/{userId}/{file}
+ * Backed by Supabase Storage when configured, else local disk.
  */
 export async function GET(
   _req: Request,
@@ -21,13 +21,11 @@ export async function GET(
 
   const { path: parts } = await ctx.params;
   const relative = parts.join("/");
-  const full = resolveUploadPath(relative);
-  if (!full) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
+  const objectKey = normalizeKycObjectKey(relative);
 
   // Expect kyc/{userId}/...
-  const userIdFromPath = parts[0] === "kyc" ? parts[1] : null;
+  const keyParts = objectKey.split("/");
+  const userIdFromPath = keyParts[0] === "kyc" ? keyParts[1] : null;
   const allowed =
     isAdmin(session.user.role) ||
     (userIdFromPath != null && userIdFromPath === session.user.id);
@@ -35,19 +33,14 @@ export async function GET(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const data = fs.readFileSync(full);
-  const ext = path.extname(full).toLowerCase();
-  const types: Record<string, string> = {
-    ".png": "image/png",
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".webp": "image/webp",
-    ".pdf": "application/pdf",
-    ".gif": "image/gif",
-  };
-  return new NextResponse(data, {
+  const loaded = await loadKycDocument(objectKey);
+  if (!loaded) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  return new NextResponse(new Uint8Array(loaded.data), {
     headers: {
-      "Content-Type": types[ext] ?? "application/octet-stream",
+      "Content-Type": loaded.contentType || guessContentType(objectKey),
       "Cache-Control": "private, max-age=60",
     },
   });

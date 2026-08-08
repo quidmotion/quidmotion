@@ -75,6 +75,8 @@ export const ledgerEntries = sqliteTable(
         "referral_reward",
         "adjustment",
         "yield",
+        "transfer_out",
+        "transfer_in",
       ],
     }).notNull(),
     amountCents: integer("amount_cents").notNull(),
@@ -159,7 +161,16 @@ export const transactions = sqliteTable(
       .notNull()
       .references(() => users.id),
     type: text("type", {
-      enum: ["deposit", "withdraw", "invest", "payout", "fee", "reward", "yield"],
+      enum: [
+        "deposit",
+        "withdraw",
+        "invest",
+        "payout",
+        "fee",
+        "reward",
+        "yield",
+        "transfer",
+      ],
     }).notNull(),
     amountCents: integer("amount_cents").notNull(),
     asset: text("asset").notNull().default("USDT"),
@@ -240,6 +251,35 @@ export const kycSubmissions = sqliteTable(
     createdAt: text("created_at").notNull(),
   },
   (t) => [index("kyc_status_idx").on(t.status)],
+);
+
+/**
+ * Instant internal balance transfers between KYC-approved users.
+ * Ledger legs use transfer_out / transfer_in with refType internal_transfer.
+ */
+export const internalTransfers = sqliteTable(
+  "internal_transfers",
+  {
+    id: text("id").primaryKey(),
+    fromUserId: text("from_user_id")
+      .notNull()
+      .references(() => users.id),
+    toUserId: text("to_user_id")
+      .notNull()
+      .references(() => users.id),
+    amountCents: integer("amount_cents").notNull(),
+    note: text("note"),
+    status: text("status", {
+      enum: ["completed", "failed"],
+    })
+      .notNull()
+      .default("completed"),
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [
+    index("internal_transfers_from_idx").on(t.fromUserId, t.createdAt),
+    index("internal_transfers_to_idx").on(t.toUserId, t.createdAt),
+  ],
 );
 
 export const faqEntries = sqliteTable("faq_entries", {
@@ -392,6 +432,7 @@ export const schema = {
   transactions,
   payouts,
   kycSubmissions,
+  internalTransfers,
   faqEntries,
   documentsMeta,
   notifications,

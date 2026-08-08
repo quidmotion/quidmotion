@@ -244,6 +244,18 @@ function ensureSchema(sqlite: DatabaseSync) {
     );
     CREATE INDEX IF NOT EXISTS kyc_status_idx ON kyc_submissions(status);
 
+    CREATE TABLE IF NOT EXISTS internal_transfers (
+      id TEXT PRIMARY KEY,
+      from_user_id TEXT NOT NULL REFERENCES users(id),
+      to_user_id TEXT NOT NULL REFERENCES users(id),
+      amount_cents INTEGER NOT NULL,
+      note TEXT,
+      status TEXT NOT NULL DEFAULT 'completed',
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS internal_transfers_from_idx ON internal_transfers(from_user_id, created_at);
+    CREATE INDEX IF NOT EXISTS internal_transfers_to_idx ON internal_transfers(to_user_id, created_at);
+
     CREATE TABLE IF NOT EXISTS faq_entries (
       id TEXT PRIMARY KEY,
       category TEXT NOT NULL,

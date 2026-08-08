@@ -20,6 +20,7 @@ export const siteConfig = {
     { label: "Home", href: "/dashboard", icon: "home" },
     { label: "Investments", href: "/dashboard/investments", icon: "invest" },
     { label: "Deposit", href: "/dashboard/deposit", icon: "deposit" },
+    { label: "Transfer", href: "/dashboard/transfer", icon: "transfer" },
     { label: "Withdraw", href: "/dashboard/withdraw", icon: "withdraw" },
     { label: "Properties", href: "/dashboard/properties", icon: "property" },
     { label: "Transactions", href: "/dashboard/transactions", icon: "tx" },

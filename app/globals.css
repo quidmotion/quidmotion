@@ -57,6 +57,23 @@ body {
   max-width: 100vw;
 }
 
+/* Floating support chat FAB */
+@keyframes qm-chat-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+.qm-chat-fab {
+  animation: qm-chat-float 3s ease-in-out infinite;
+}
+.qm-chat-fab:hover {
+  animation: none;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;

@@ -14,7 +14,7 @@ import {
 } from "@/lib/storage/kyc";
 import {
   assertActive,
-  assertAdmin,
+  assertPrivilege,
   assertSelfOrAdmin,
   loadActor,
 } from "./_authz";
@@ -149,7 +149,7 @@ export async function getLatestForUser(actorId: string, userId: string) {
 
 export async function listQueue(actorId: string) {
   const actor = await loadActor(actorId);
-  assertAdmin(actor);
+  await assertPrivilege(actor, "kyc.view");
   const db = getDb();
   return (await db
     .select()
@@ -160,7 +160,7 @@ export async function listQueue(actorId: string) {
 
 export async function listAll(actorId: string, limit = 100) {
   const actor = await loadActor(actorId);
-  assertAdmin(actor);
+  await assertPrivilege(actor, "kyc.view");
   const db = getDb();
   const rows = (await db
     .select()
@@ -171,7 +171,7 @@ export async function listAll(actorId: string, limit = 100) {
 
 export async function getSubmission(actorId: string, submissionId: string) {
   const actor = await loadActor(actorId);
-  assertAdmin(actor);
+  await assertPrivilege(actor, "kyc.view");
   const db = getDb();
   const rows = (await db
     .select()
@@ -199,7 +199,7 @@ export async function review(
   note?: string,
 ) {
   const actor = await loadActor(actorId);
-  assertAdmin(actor);
+  await assertPrivilege(actor, "kyc.review");
   const db = getDb();
   const rows = (await db
     .select()

@@ -1,5 +1,4 @@
 export const dynamic = "force-dynamic";
-import { getAuth } from "@/lib/auth";
 import {
   listPendingDeposits,
   listAdminDeposits,
@@ -8,6 +7,7 @@ import { formatUsd } from "@/lib/money";
 import { Island, IslandBody, IslandHeader } from "@/components/ui/Island";
 import { Badge } from "@/components/ui/Badge";
 import { reviewDepositAction } from "@/lib/actions/admin";
+import { requireAdminPath, staffHasPrivilege } from "@/lib/admin/guard";
 
 function statusTone(status: string) {
   if (status === "pending") return "warning" as const;
@@ -17,9 +17,10 @@ function statusTone(status: string) {
 }
 
 export default async function AdminDepositsPage() {
-  const session = await getAuth().getSession();
-  const pending = await listPendingDeposits(session!.user.id);
-  const history = (await listAdminDeposits(session!.user.id, 40)).filter(
+  const ctx = await requireAdminPath("/admin/deposits");
+  const canReview = await staffHasPrivilege(ctx, "deposits.review");
+  const pending = await listPendingDeposits(ctx.user.id);
+  const history = (await listAdminDeposits(ctx.user.id, 40)).filter(
     (d: any) => d.status !== "pending",
   );
 
@@ -87,37 +88,45 @@ export default async function AdminDepositsPage() {
                 </p>
               )}
 
-              <div className="mt-4 flex flex-wrap gap-2">
-                <form action={reviewDepositAction}>
-                  <input type="hidden" name="id" value={d.id} />
-                  <input type="hidden" name="decision" value="confirm" />
-                  <button
-                    type="submit"
-                    className="rounded-full bg-emerald-500/20 px-4 py-1.5 text-xs font-medium text-emerald-300 hover:bg-emerald-500/30"
-                  >
-                    Confirm & credit
-                  </button>
-                </form>
-                <form action={reviewDepositAction}>
-                  <input type="hidden" name="id" value={d.id} />
-                  <input type="hidden" name="decision" value="reject" />
-                  <input
-                    type="hidden"
-                    name="note"
-                    value="Transfer not found or amount mismatch"
-                  />
-                  <button
-                    type="submit"
-                    className="rounded-full bg-red-500/20 px-4 py-1.5 text-xs font-medium text-red-300 hover:bg-red-500/30"
-                  >
-                    Reject
-                  </button>
-                </form>
-              </div>
-              <p className="mt-2 text-[11px] text-white/30">
-                Confirm only after you have verified the transfer arrived at the
-                platform deposit address.
-              </p>
+              {canReview ? (
+                <>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <form action={reviewDepositAction}>
+                      <input type="hidden" name="id" value={d.id} />
+                      <input type="hidden" name="decision" value="confirm" />
+                      <button
+                        type="submit"
+                        className="rounded-full bg-emerald-500/20 px-4 py-1.5 text-xs font-medium text-emerald-300 hover:bg-emerald-500/30"
+                      >
+                        Confirm & credit
+                      </button>
+                    </form>
+                    <form action={reviewDepositAction}>
+                      <input type="hidden" name="id" value={d.id} />
+                      <input type="hidden" name="decision" value="reject" />
+                      <input
+                        type="hidden"
+                        name="note"
+                        value="Transfer not found or amount mismatch"
+                      />
+                      <button
+                        type="submit"
+                        className="rounded-full bg-red-500/20 px-4 py-1.5 text-xs font-medium text-red-300 hover:bg-red-500/30"
+                      >
+                        Reject
+                      </button>
+                    </form>
+                  </div>
+                  <p className="mt-2 text-[11px] text-white/30">
+                    Confirm only after you have verified the transfer arrived at
+                    the platform deposit address.
+                  </p>
+                </>
+              ) : (
+                <p className="mt-3 text-xs text-white/35">
+                  View only — you do not have deposit review privilege.
+                </p>
+              )}
             </div>
           ))}
         </IslandBody>

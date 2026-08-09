@@ -8,7 +8,13 @@ import { cn } from "@/lib/utils/cn";
 import { siteConfig } from "@/lib/config/site";
 import { logoutAction } from "@/lib/actions/auth";
 
-export function AdminHeader() {
+export function AdminHeader({
+  nav,
+  roleLabel = "Admin",
+}: {
+  nav: { label: string; href: string }[];
+  roleLabel?: string;
+}) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -51,13 +57,14 @@ export function AdminHeader() {
           </button>
           <Link href="/admin" className="min-w-0 truncate font-semibold">
             <span className="sm:hidden">{siteConfig.name}</span>
-            <span className="hidden sm:inline">{siteConfig.name} Admin</span>
+            <span className="hidden sm:inline">
+              {siteConfig.name} {roleLabel}
+            </span>
           </Link>
         </div>
 
-        {/* Desktop nav */}
         <nav className="hidden min-w-0 flex-1 items-center justify-center gap-1 overflow-x-auto lg:flex">
-          {siteConfig.adminNav.map((item) => (
+          {nav.map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -93,7 +100,6 @@ export function AdminHeader() {
         </div>
       </div>
 
-      {/* Mobile drawer */}
       {open && (
         <div className="lg:hidden">
           <button
@@ -107,7 +113,7 @@ export function AdminHeader() {
             className="absolute inset-x-0 top-full z-50 max-h-[min(70vh,28rem)] overflow-y-auto border-b border-white/10 bg-[#0c0d12]/95 px-3 py-3 shadow-2xl backdrop-blur-xl"
           >
             <div className="mx-auto grid max-w-6xl gap-1 sm:grid-cols-2">
-              {siteConfig.adminNav.map((item) => (
+              {nav.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}

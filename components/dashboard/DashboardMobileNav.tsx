@@ -108,14 +108,16 @@ export function DashboardMobileNav({
             </div>
           </Link>
           <div className="flex shrink-0 items-center gap-1.5">
-            {user.role === "admin" && (
+            {(user.role === "admin" || user.role === "support") && (
               <Link
                 href="/admin"
                 className="flex h-9 items-center gap-1 rounded-full bg-violet-500/15 px-2.5 text-xs text-violet-200"
-                aria-label="Admin"
+                aria-label={user.role === "support" ? "Support" : "Admin"}
               >
                 <Shield className="h-3.5 w-3.5" />
-                <span className="sr-only">Admin</span>
+                <span className="sr-only">
+                  {user.role === "support" ? "Support" : "Admin"}
+                </span>
               </Link>
             )}
             <div

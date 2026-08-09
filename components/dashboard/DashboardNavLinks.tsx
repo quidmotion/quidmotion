@@ -31,8 +31,10 @@ const icons: Record<string, React.ComponentType<{ className?: string }>> = {
 
 export function DashboardNavLinks({
   isAdmin = false,
+  staffLabel = "Admin",
 }: {
   isAdmin?: boolean;
+  staffLabel?: string;
 }) {
   const pathname = usePathname();
 
@@ -66,7 +68,7 @@ export function DashboardNavLinks({
           className="mt-2 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-violet-300 transition hover:bg-violet-500/10"
         >
           <Shield className="h-4 w-4 shrink-0" />
-          Admin
+          {staffLabel}
         </Link>
       )}
     </nav>

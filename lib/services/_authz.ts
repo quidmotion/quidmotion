@@ -1,9 +1,19 @@
 import "server-only";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { users } from "@/lib/db/schema";
+import { users, supportPrivileges } from "@/lib/db/schema";
 import { AppError } from "@/lib/errors";
-import { isAdmin, type AuthUser, type Role } from "@/lib/auth/types";
+import { isAdmin, isStaff, type AuthUser, type Role } from "@/lib/auth/types";
+import {
+  allPrivilegesOn,
+  defaultSupportPrivileges,
+  emptyPrivileges,
+  hasAnyPrivilegeInMap,
+  hasPrivilegeInMap,
+  parsePrivilegesJson,
+  type PrivilegeKey,
+  type PrivilegeMap,
+} from "@/lib/auth/privileges";
 
 export function assertAuthenticated(actor: AuthUser | null | undefined): AuthUser {
   if (!actor) throw new AppError("UNAUTHORIZED", "Sign in required", 401);
@@ -20,6 +30,14 @@ export function assertAdmin(actor: AuthUser): void {
   assertActive(actor);
   if (!isAdmin(actor.role as Role)) {
     throw new AppError("FORBIDDEN", "Admin access required", 403);
+  }
+}
+
+/** Admin or support staff with any staff-area access. */
+export function assertStaff(actor: AuthUser): void {
+  assertActive(actor);
+  if (!isStaff(actor.role as Role)) {
+    throw new AppError("FORBIDDEN", "Staff access required", 403);
   }
 }
 
@@ -61,4 +79,75 @@ export async function loadActor(actorId: string): Promise<AuthUser> {
     createdAt: row.createdAt,
     lockupDays: row.lockupDays ?? 90,
   };
+}
+
+export async function loadPrivileges(actor: AuthUser): Promise<PrivilegeMap> {
+  if (isAdmin(actor.role as Role)) return allPrivilegesOn();
+  if (actor.role !== "support") return emptyPrivileges();
+
+  const db = getDb();
+  const rows = (await db
+    .select()
+    .from(supportPrivileges)
+    .where(eq(supportPrivileges.userId, actor.id))) as any[];
+  if (!rows[0]) return defaultSupportPrivileges();
+  return parsePrivilegesJson(rows[0].privileges);
+}
+
+export async function actorHasPrivilege(
+  actor: AuthUser,
+  key: PrivilegeKey,
+): Promise<boolean> {
+  assertActive(actor);
+  if (isAdmin(actor.role as Role)) return true;
+  if (actor.role !== "support") return false;
+  const map = await loadPrivileges(actor);
+  return hasPrivilegeInMap(map, key);
+}
+
+export async function actorHasAnyPrivilege(
+  actor: AuthUser,
+  keys: PrivilegeKey[],
+): Promise<boolean> {
+  assertActive(actor);
+  if (isAdmin(actor.role as Role)) return true;
+  if (actor.role !== "support") return false;
+  const map = await loadPrivileges(actor);
+  return hasAnyPrivilegeInMap(map, keys);
+}
+
+export async function assertPrivilege(
+  actor: AuthUser,
+  key: PrivilegeKey,
+): Promise<void> {
+  const ok = await actorHasPrivilege(actor, key);
+  if (!ok) {
+    throw new AppError(
+      "FORBIDDEN",
+      `Missing privilege: ${key}`,
+      403,
+    );
+  }
+}
+
+export async function assertAnyPrivilege(
+  actor: AuthUser,
+  keys: PrivilegeKey[],
+): Promise<void> {
+  const ok = await actorHasAnyPrivilege(actor, keys);
+  if (!ok) {
+    throw new AppError(
+      "FORBIDDEN",
+      `Missing privilege: one of ${keys.join(", ")}`,
+      403,
+    );
+  }
+}
+
+/** Admin always; support only with the given privilege. */
+export async function assertAdminOrPrivilege(
+  actor: AuthUser,
+  key: PrivilegeKey,
+): Promise<void> {
+  await assertPrivilege(actor, key);
 }

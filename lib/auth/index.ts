@@ -21,5 +21,13 @@ export function getAuth(): AuthAdapter {
 }
 
 export type { AuthAdapter, AuthUser, Session, Role } from "./types";
-export { isAdmin } from "./types";
+export { isAdmin, isStaff } from "./types";
+export type { PrivilegeKey, PrivilegeMap } from "./privileges";
+export {
+  PRIVILEGE_KEYS,
+  PRIVILEGE_LABELS,
+  defaultSupportPrivileges,
+  parsePrivilegesJson,
+  hasPrivilegeInMap,
+} from "./privileges";
 export { SEAL_COOKIE, SESSION_COOKIE, verifySealedToken, parseCookie } from "./sealed";

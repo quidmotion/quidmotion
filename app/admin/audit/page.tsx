@@ -1,11 +1,11 @@
 export const dynamic = "force-dynamic";
-import { getAuth } from "@/lib/auth";
 import { listAudit } from "@/lib/services/audit";
 import { Island, IslandBody, IslandHeader } from "@/components/ui/Island";
+import { requireFullAdmin } from "@/lib/admin/guard";
 
 export default async function AdminAuditPage() {
-  const session = await getAuth().getSession();
-  const events = await listAudit(session!.user.id, 100);
+  const ctx = await requireFullAdmin();
+  const events = await listAudit(ctx.user.id, 100);
 
   return (
     <div className="space-y-4">

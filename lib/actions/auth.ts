@@ -62,8 +62,23 @@ export async function loginAction(
     return actionError(e, "Login failed");
   }
 
-  const next = String(formData.get("next") ?? "/dashboard");
-  redirect(next.startsWith("/") ? next : "/dashboard");
+  const session = await getAuth().getSession();
+  const rawNext = String(formData.get("next") ?? "");
+  let next = rawNext.startsWith("/") ? rawNext : "";
+  if (!next) {
+    next =
+      session?.user.role === "admin" || session?.user.role === "support"
+        ? "/admin"
+        : "/dashboard";
+  }
+  // Support staff should land in admin when next is generic dashboard
+  if (
+    (session?.user.role === "support" || session?.user.role === "admin") &&
+    (next === "/dashboard" || next === "/")
+  ) {
+    next = "/admin";
+  }
+  redirect(next);
 }
 
 export async function registerAction(

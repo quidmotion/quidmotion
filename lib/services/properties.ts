@@ -4,7 +4,7 @@ import { eq, desc } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { properties } from "@/lib/db/schema";
 import { AppError } from "@/lib/errors";
-import { assertAdmin, loadActor } from "./_authz";
+import { assertAnyPrivilege, assertPrivilege, loadActor } from "./_authz";
 import { logEvent } from "./audit";
 
 function nowIso() {
@@ -46,7 +46,7 @@ export async function listFeatured(limit = 6) {
 
 export async function listAllAdmin(actorId: string) {
   const actor = await loadActor(actorId);
-  assertAdmin(actor);
+  await assertAnyPrivilege(actor, ["properties.edit", "properties.create"]);
   const db = getDb();
   return (await db
     .select()
@@ -68,7 +68,7 @@ export type PropertyInput = {
 
 export async function createProperty(actorId: string, input: PropertyInput) {
   const actor = await loadActor(actorId);
-  assertAdmin(actor);
+  await assertPrivilege(actor, "properties.create");
 
   if (
     !input.name?.trim() ||
@@ -122,7 +122,7 @@ export async function updateProperty(
   input: Partial<PropertyInput>,
 ) {
   const actor = await loadActor(actorId);
-  assertAdmin(actor);
+  await assertPrivilege(actor, "properties.edit");
   const db = getDb();
   const existing = await getProperty(propertyId);
   if (!existing) throw new AppError("NOT_FOUND", "Property not found", 404);
@@ -159,7 +159,7 @@ export async function updateProperty(
 
 export async function deleteProperty(actorId: string, propertyId: string) {
   const actor = await loadActor(actorId);
-  assertAdmin(actor);
+  await assertPrivilege(actor, "properties.edit");
   const existing = await getProperty(propertyId);
   if (!existing) throw new AppError("NOT_FOUND", "Property not found", 404);
   // Soft-close rather than hard delete to preserve investment FKs

@@ -420,6 +420,62 @@ export const emailOutbox = sqliteTable(
   (t) => [index("email_outbox_status_idx").on(t.status)],
 );
 
+/** Per-support-user privilege matrix (JSON map of PrivilegeKey → boolean). */
+export const supportPrivileges = sqliteTable("support_privileges", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.id),
+  privileges: text("privileges").notNull(), // JSON
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+  updatedBy: text("updated_by"),
+});
+
+export const supportConversations = sqliteTable(
+  "support_conversations",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").references(() => users.id),
+    guestName: text("guest_name"),
+    guestEmail: text("guest_email"),
+    guestTokenHash: text("guest_token_hash"),
+    status: text("status", {
+      enum: ["open", "pending", "closed"],
+    })
+      .notNull()
+      .default("open"),
+    assignedTo: text("assigned_to").references(() => users.id),
+    lastMessageAt: text("last_message_at").notNull(),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => [
+    index("support_conv_status_last_idx").on(t.status, t.lastMessageAt),
+    index("support_conv_user_idx").on(t.userId),
+    index("support_conv_guest_token_idx").on(t.guestTokenHash),
+  ],
+);
+
+export const supportMessages = sqliteTable(
+  "support_messages",
+  {
+    id: text("id").primaryKey(),
+    conversationId: text("conversation_id")
+      .notNull()
+      .references(() => supportConversations.id),
+    senderId: text("sender_id").references(() => users.id),
+    senderRole: text("sender_role", {
+      enum: ["user", "guest", "support", "admin", "system"],
+    }).notNull(),
+    body: text("body").notNull(),
+    createdAt: text("created_at").notNull(),
+    readAt: text("read_at"),
+  },
+  (t) => [
+    index("support_msg_conv_created_idx").on(t.conversationId, t.createdAt),
+  ],
+);
+
 export const schema = {
   users,
   sessions,
@@ -445,4 +501,7 @@ export const schema = {
   platformSettings,
   defaultPortfolioRates,
   emailOutbox,
+  supportPrivileges,
+  supportConversations,
+  supportMessages,
 };

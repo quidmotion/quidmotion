@@ -1,5 +1,4 @@
 export const dynamic = "force-dynamic";
-import { getAuth } from "@/lib/auth";
 import { listAllAdmin } from "@/lib/services/properties";
 import { formatUsd } from "@/lib/money";
 import { Island, IslandBody, IslandHeader } from "@/components/ui/Island";
@@ -10,10 +9,13 @@ import {
   createPropertyAction,
   updatePropertyAction,
 } from "@/lib/actions/admin";
+import { requireAdminPath, staffHasPrivilege } from "@/lib/admin/guard";
 
 export default async function AdminPropertiesPage() {
-  const session = await getAuth().getSession();
-  const props = await listAllAdmin(session!.user.id);
+  const ctx = await requireAdminPath("/admin/properties");
+  const canCreate = await staffHasPrivilege(ctx, "properties.create");
+  const canEdit = await staffHasPrivilege(ctx, "properties.edit");
+  const props = await listAllAdmin(ctx.user.id);
 
   return (
     <div className="space-y-6">
@@ -24,6 +26,7 @@ export default async function AdminPropertiesPage() {
         </p>
       </div>
 
+      {canCreate && (
       <Island>
         <IslandHeader>
           <span className="font-medium">Add property</span>
@@ -108,6 +111,7 @@ export default async function AdminPropertiesPage() {
           </form>
         </IslandBody>
       </Island>
+      )}
 
       <Island>
         <IslandHeader>
@@ -142,56 +146,63 @@ export default async function AdminPropertiesPage() {
                 </span>
               </div>
 
-              <form
-                action={updatePropertyAction}
-                className="mt-4 grid gap-2 border-t border-white/8 pt-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
-              >
-                <input type="hidden" name="id" value={p.id} />
-                <div>
-                  <Label>Status</Label>
-                  <select
-                    name="status"
-                    defaultValue={p.status}
-                    className="h-10 w-full rounded-xl border border-white/10 bg-white/5 px-2 text-xs"
-                  >
-                    {["draft", "live", "funded", "closed"].map((s: any) => (
-                      <option key={s} value={s} className="bg-[#12141c]">
-                        {s}
+              {canEdit ? (
+                <form
+                  action={updatePropertyAction}
+                  className="mt-4 grid gap-2 border-t border-white/8 pt-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
+                >
+                  <input type="hidden" name="id" value={p.id} />
+                  <div>
+                    <Label>Status</Label>
+                    <select
+                      name="status"
+                      defaultValue={p.status}
+                      className="h-10 w-full rounded-xl border border-white/10 bg-white/5 px-2 text-xs"
+                    >
+                      {["draft", "live", "funded", "closed"].map((s: any) => (
+                        <option key={s} value={s} className="bg-[#12141c]">
+                          {s}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <Label>Featured</Label>
+                    <select
+                      name="featured"
+                      defaultValue={p.featured ? "true" : "false"}
+                      className="h-10 w-full rounded-xl border border-white/10 bg-white/5 px-2 text-xs"
+                    >
+                      <option value="true" className="bg-[#12141c]">
+                        Yes
                       </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <Label>Featured</Label>
-                  <select
-                    name="featured"
-                    defaultValue={p.featured ? "true" : "false"}
-                    className="h-10 w-full rounded-xl border border-white/10 bg-white/5 px-2 text-xs"
-                  >
-                    <option value="true" className="bg-[#12141c]">
-                      Yes
-                    </option>
-                    <option value="false" className="bg-[#12141c]">
-                      No
-                    </option>
-                  </select>
-                </div>
-                <div>
-                  <Label>Expected APY %</Label>
-                  <Input
-                    name="expectedApyPct"
-                    type="number"
-                    step="0.1"
-                    defaultValue={(p.expectedApyBps / 100).toFixed(1)}
-                    className="h-10 text-xs"
-                  />
-                </div>
-                <div className="flex items-end">
-                  <Button type="submit" size="sm" variant="secondary" className="w-full">
-                    Update
-                  </Button>
-                </div>
-              </form>
+                      <option value="false" className="bg-[#12141c]">
+                        No
+                      </option>
+                    </select>
+                  </div>
+                  <div>
+                    <Label>Expected APY %</Label>
+                    <Input
+                      name="expectedApyPct"
+                      type="number"
+                      step="0.1"
+                      defaultValue={(p.expectedApyBps / 100).toFixed(1)}
+                      className="h-10 text-xs"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <Button
+                      type="submit"
+                      size="sm"
+                      variant="secondary"
+                      className="w-full"
+                    >
+                      Update
+                    </Button>
+                  </div>
+                </form>
+              ) : null}
             </div>
           ))}
         </IslandBody>

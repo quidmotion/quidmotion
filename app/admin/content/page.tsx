@@ -2,8 +2,10 @@ export const dynamic = "force-dynamic";
 import { listDocuments } from "@/lib/services/documents";
 import { listFaq } from "@/lib/services/faq";
 import { Island, IslandBody, IslandHeader } from "@/components/ui/Island";
+import { requireFullAdmin } from "@/lib/admin/guard";
 
 export default async function AdminContentPage() {
+  await requireFullAdmin();
   const docs = await listDocuments();
   const faqs = await listFaq();
 

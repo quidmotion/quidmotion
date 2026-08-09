@@ -4,6 +4,7 @@ import { listUsers, setUserStatus } from "@/lib/services/users";
 import { Island, IslandBody, IslandHeader } from "@/components/ui/Island";
 import { Badge } from "@/components/ui/Badge";
 import { revalidatePath } from "next/cache";
+import { requireFullAdmin } from "@/lib/admin/guard";
 
 async function toggleStatus(formData: FormData) {
   "use server";
@@ -16,8 +17,8 @@ async function toggleStatus(formData: FormData) {
 }
 
 export default async function AdminUsersPage() {
-  const session = await getAuth().getSession();
-  const { items: users, total } = await listUsers(session!.user.id);
+  const ctx = await requireFullAdmin();
+  const { items: users, total } = await listUsers(ctx.user.id);
 
   return (
     <div className="space-y-4">

@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { platformSettings } from "@/lib/db/schema";
 import { AppError } from "@/lib/errors";
-import { assertAdmin, loadActor } from "./_authz";
+import { assertAdmin, assertPrivilege, loadActor } from "./_authz";
 import { logEvent } from "./audit";
 
 export const SETTING_KEYS = {
@@ -37,24 +37,27 @@ export async function getSettingOrDefault(
   return val ?? fallback;
 }
 
-export async function setSetting(actorId: string, key: string, value: string) {
-  const actor = await loadActor(actorId);
-  assertAdmin(actor);
+/** Low-level write — caller must already authorize. */
+export async function writeSetting(
+  actorId: string,
+  key: string,
+  value: string,
+) {
   const db = getDb();
   const now = nowIso();
   const existing = await getSetting(key);
   if (existing !== null) {
     await db
       .update(platformSettings)
-      .set({ value, updatedAt: now, updatedBy: actor.id })
+      .set({ value, updatedAt: now, updatedBy: actorId })
       .where(eq(platformSettings.key, key));
   } else {
     await db
       .insert(platformSettings)
-      .values({ key, value, updatedAt: now, updatedBy: actor.id });
+      .values({ key, value, updatedAt: now, updatedBy: actorId });
   }
   await logEvent({
-    actorId: actor.id,
+    actorId,
     action: "settings.update",
     resourceType: "platform_settings",
     resourceId: key,
@@ -63,13 +66,22 @@ export async function setSetting(actorId: string, key: string, value: string) {
   return { key, value, updatedAt: now };
 }
 
+/** Admin-only generic setting write. */
+export async function setSetting(actorId: string, key: string, value: string) {
+  const actor = await loadActor(actorId);
+  assertAdmin(actor);
+  return writeSetting(actor.id, key, value);
+}
+
 export async function setSettings(
   actorId: string,
   entries: Record<string, string>,
 ) {
+  const actor = await loadActor(actorId);
+  assertAdmin(actor);
   for (const [key, value] of Object.entries(entries)) {
     if (value === undefined || value === null) continue;
-    await setSetting(actorId, key, String(value).trim());
+    await writeSetting(actor.id, key, String(value).trim());
   }
 }
 
@@ -108,7 +120,7 @@ export async function updateDepositWallets(
   wallets: { asset: string; address: string; network?: string }[],
 ) {
   const actor = await loadActor(actorId);
-  assertAdmin(actor);
+  await assertPrivilege(actor, "settings.wallets");
   for (const w of wallets) {
     const asset = w.asset.toUpperCase();
     if (!DEPOSIT_ASSETS.includes(asset as (typeof DEPOSIT_ASSETS)[number])) {
@@ -117,14 +129,14 @@ export async function updateDepositWallets(
     if (!w.address?.trim()) {
       throw new AppError("VALIDATION", `${asset} deposit address is required`);
     }
-    await setSetting(
-      actorId,
+    await writeSetting(
+      actor.id,
       SETTING_KEYS.depositWallet(asset),
       w.address.trim(),
     );
     if (w.network?.trim()) {
-      await setSetting(
-        actorId,
+      await writeSetting(
+        actor.id,
         SETTING_KEYS.depositNetwork(asset),
         w.network.trim(),
       );
@@ -138,14 +150,14 @@ export async function updateOfficialEmails(
   emails: { contact?: string; support?: string; noreply?: string },
 ) {
   const actor = await loadActor(actorId);
-  assertAdmin(actor);
+  await assertPrivilege(actor, "settings.emails");
   const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (emails.contact !== undefined) {
     if (!emailRe.test(emails.contact)) {
       throw new AppError("VALIDATION", "Invalid contact email");
     }
-    await setSetting(
-      actorId,
+    await writeSetting(
+      actor.id,
       SETTING_KEYS.emailContact,
       emails.contact.trim(),
     );
@@ -154,8 +166,8 @@ export async function updateOfficialEmails(
     if (!emailRe.test(emails.support)) {
       throw new AppError("VALIDATION", "Invalid support email");
     }
-    await setSetting(
-      actorId,
+    await writeSetting(
+      actor.id,
       SETTING_KEYS.emailSupport,
       emails.support.trim(),
     );
@@ -164,8 +176,8 @@ export async function updateOfficialEmails(
     if (!emailRe.test(emails.noreply)) {
       throw new AppError("VALIDATION", "Invalid no-reply email");
     }
-    await setSetting(
-      actorId,
+    await writeSetting(
+      actor.id,
       SETTING_KEYS.emailNoreply,
       emails.noreply.trim(),
     );

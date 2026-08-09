@@ -13,6 +13,9 @@ export default async function LoginPage({
 }) {
   const session = await getAuth().getSession();
   if (session) {
+    if (session.user.role === "admin" || session.user.role === "support") {
+      redirect("/admin");
+    }
     redirect("/dashboard");
   }
 

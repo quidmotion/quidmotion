@@ -11,8 +11,8 @@ import {
 } from "@/lib/db/schema";
 import { asCents, sumCents, warnIfInsaneCents } from "@/lib/money";
 import { getBalances, postLedgerEntry } from "./ledger";
-import { assertAdmin, loadActor } from "./_authz";
-import { setSetting } from "./settings";
+import { assertPrivilege, loadActor } from "./_authz";
+import { writeSetting } from "./settings";
 
 /** Hours in a year for simple hourly interest. */
 const HOURS_PER_YEAR = 365 * 24;
@@ -418,7 +418,7 @@ export async function updateApyRules(
   lockups: { days: number; multiplierPct: number }[],
 ) {
   const actor = await loadActor(actorId);
-  assertAdmin(actor);
+  await assertPrivilege(actor, "settings.apy");
   const db = getDb();
   const now = nowIso();
 
@@ -435,7 +435,7 @@ export async function updateApyRules(
   for (const l of lockups) {
     const key = `lockup_mult_${l.days}`;
     const value = String(l.multiplierPct / 100);
-    await setSetting(actorId, key, value);
+    await writeSetting(actor.id, key, value);
   }
 
   await recalculateAllInvestmentsApy();

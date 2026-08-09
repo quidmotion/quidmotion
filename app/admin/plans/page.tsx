@@ -1,14 +1,12 @@
 export const dynamic = "force-dynamic";
-import { getAuth } from "@/lib/auth";
 import { listPlans } from "@/lib/services/investments";
 import { formatUsd } from "@/lib/money";
 import { Island, IslandBody, IslandHeader } from "@/components/ui/Island";
 import { Badge } from "@/components/ui/Badge";
+import { requireFullAdmin } from "@/lib/admin/guard";
 
 export default async function AdminPlansPage() {
-  const session = await getAuth().getSession();
-  // ensure admin session context for future mutations
-  void session;
+  await requireFullAdmin();
   const plans = await listPlans();
 
   return (

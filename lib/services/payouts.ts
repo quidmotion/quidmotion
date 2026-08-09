@@ -8,6 +8,7 @@ import {
   assertActive,
   assertAdmin,
   assertKycApproved,
+  assertPrivilege,
   assertSelfOrAdmin,
   loadActor,
 } from "./_authz";
@@ -152,7 +153,7 @@ export async function requestWithdrawal(
 
 export async function listPendingApprovals(actorId: string) {
   const actor = await loadActor(actorId);
-  assertAdmin(actor);
+  await assertPrivilege(actor, "withdrawals.view");
   const db = getDb();
   return (await db
     .select()
@@ -164,7 +165,7 @@ export async function listPendingApprovals(actorId: string) {
 /** Approved / in-flight withdrawals awaiting manual on-chain send + completion. */
 export async function listProcessing(actorId: string) {
   const actor = await loadActor(actorId);
-  assertAdmin(actor);
+  await assertPrivilege(actor, "withdrawals.view");
   const db = getDb();
   return (await db
     .select()
@@ -175,7 +176,7 @@ export async function listProcessing(actorId: string) {
 
 export async function listAdminWithdrawals(actorId: string) {
   const actor = await loadActor(actorId);
-  assertAdmin(actor);
+  await assertPrivilege(actor, "withdrawals.view");
   const db = getDb();
   const rows = (await db
     .select()
@@ -217,7 +218,7 @@ export async function reject(
  */
 export async function approvePayout(actorId: string, payoutId: string) {
   const actor = await loadActor(actorId);
-  assertAdmin(actor);
+  await assertPrivilege(actor, "withdrawals.review");
   const db = getDb();
   const rows = (await db
     .select()
@@ -264,7 +265,7 @@ export async function rejectPayout(
   note?: string,
 ) {
   const actor = await loadActor(actorId);
-  assertAdmin(actor);
+  await assertPrivilege(actor, "withdrawals.review");
   const db = getDb();
   const rows = (await db
     .select()
@@ -332,7 +333,7 @@ export async function completePayout(
   note?: string,
 ) {
   const actor = await loadActor(actorId);
-  assertAdmin(actor);
+  await assertPrivilege(actor, "withdrawals.review");
   const db = getDb();
   const rows = (await db
     .select()

@@ -29,6 +29,7 @@ export const siteConfig = {
   ],
   adminNav: [
     { label: "Overview", href: "/admin" },
+    { label: "Support chat", href: "/admin/support" },
     { label: "Users", href: "/admin/users" },
     { label: "KYC", href: "/admin/kyc" },
     { label: "Deposits", href: "/admin/deposits" },
@@ -36,6 +37,7 @@ export const siteConfig = {
     { label: "Withdrawals", href: "/admin/payouts" },
     { label: "Properties", href: "/admin/properties" },
     { label: "Settings", href: "/admin/settings" },
+    { label: "Support staff", href: "/admin/support-staff" },
     { label: "Content", href: "/admin/content" },
     { label: "Audit", href: "/admin/audit" },
   ],

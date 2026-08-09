@@ -30,7 +30,10 @@ export default async function DashboardLayout({
             <span className="font-semibold">{siteConfig.name}</span>
           </Link>
 
-          <DashboardNavLinks isAdmin={user.role === "admin"} />
+          <DashboardNavLinks
+            isAdmin={user.role === "admin" || user.role === "support"}
+            staffLabel={user.role === "support" ? "Support" : "Admin"}
+          />
 
           <div className="mt-auto rounded-xl border border-white/8 bg-white/5 p-3">
             <div className="flex items-center gap-2">
@@ -61,7 +64,11 @@ export default async function DashboardLayout({
         {/* Main — min-w-0 + overflow clip keeps islands/charts inside the viewport */}
         <div className="flex min-w-0 flex-1 flex-col overflow-x-clip">
           <DashboardMobileNav
-            user={{ name: user.name, email: user.email, role: user.role }}
+            user={{
+              name: user.name,
+              email: user.email,
+              role: user.role,
+            }}
           />
           {/* Bottom nav clearance on mobile only */}
           <main className="min-w-0 flex-1 overflow-x-clip pb-20 md:pb-0">

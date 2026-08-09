@@ -1,20 +1,25 @@
 export const dynamic = "force-dynamic";
-import { getAuth } from "@/lib/auth";
+
 import { listQueue } from "@/lib/services/kyc";
 import { Island, IslandBody, IslandHeader } from "@/components/ui/Island";
 import { reviewKycAction } from "@/lib/actions/admin";
 import { getDb } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { requireAdminPath, staffHasPrivilege } from "@/lib/admin/guard";
 
 export default async function AdminKycPage() {
-  const session = await getAuth().getSession();
-  const pending = await listQueue(session!.user.id);
+  const ctx = await requireAdminPath("/admin/kyc");
+  const canReview = await staffHasPrivilege(ctx, "kyc.review");
+  const pending = await listQueue(ctx.user.id);
   const db = getDb();
 
   const enriched = await Promise.all(
     pending.map(async (k: any) => {
-      const userRows = (await db.select().from(users).where(eq(users.id, k.userId))) as any[];
+      const userRows = (await db
+        .select()
+        .from(users)
+        .where(eq(users.id, k.userId))) as any[];
       const user = userRows[0];
       let paths: string[] = [];
       try {
@@ -28,7 +33,7 @@ export default async function AdminKycPage() {
         userName: user?.name,
         paths,
       };
-    })
+    }),
   );
 
   return (
@@ -81,13 +86,17 @@ export default async function AdminKycPage() {
                 </div>
                 <div>
                   <dt className="text-xs text-white/40">Document number</dt>
-                  <dd className="font-mono text-xs">{k.documentNumber || "—"}</dd>
+                  <dd className="font-mono text-xs">
+                    {k.documentNumber || "—"}
+                  </dd>
                 </div>
               </dl>
 
               {k.paths.length > 0 && (
                 <div className="mt-3">
-                  <div className="text-xs uppercase text-white/40">Documents</div>
+                  <div className="text-xs uppercase text-white/40">
+                    Documents
+                  </div>
                   <div className="mt-1 flex flex-wrap gap-2">
                     {k.paths.map((rel: any) => (
                       <a
@@ -104,33 +113,39 @@ export default async function AdminKycPage() {
                 </div>
               )}
 
-              <div className="mt-4 flex flex-wrap gap-2">
-                <form action={reviewKycAction}>
-                  <input type="hidden" name="id" value={k.id} />
-                  <input type="hidden" name="decision" value="approved" />
-                  <button
-                    type="submit"
-                    className="rounded-full bg-emerald-500/20 px-4 py-1.5 text-xs font-medium text-emerald-300"
-                  >
-                    Approve
-                  </button>
-                </form>
-                <form action={reviewKycAction}>
-                  <input type="hidden" name="id" value={k.id} />
-                  <input type="hidden" name="decision" value="rejected" />
-                  <input
-                    type="hidden"
-                    name="note"
-                    value="Documents insufficient or unverifiable"
-                  />
-                  <button
-                    type="submit"
-                    className="rounded-full bg-red-500/20 px-4 py-1.5 text-xs font-medium text-red-300"
-                  >
-                    Reject
-                  </button>
-                </form>
-              </div>
+              {canReview ? (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <form action={reviewKycAction}>
+                    <input type="hidden" name="id" value={k.id} />
+                    <input type="hidden" name="decision" value="approved" />
+                    <button
+                      type="submit"
+                      className="rounded-full bg-emerald-500/20 px-4 py-1.5 text-xs font-medium text-emerald-300"
+                    >
+                      Approve
+                    </button>
+                  </form>
+                  <form action={reviewKycAction}>
+                    <input type="hidden" name="id" value={k.id} />
+                    <input type="hidden" name="decision" value="rejected" />
+                    <input
+                      type="hidden"
+                      name="note"
+                      value="Documents insufficient or unverifiable"
+                    />
+                    <button
+                      type="submit"
+                      className="rounded-full bg-red-500/20 px-4 py-1.5 text-xs font-medium text-red-300"
+                    >
+                      Reject
+                    </button>
+                  </form>
+                </div>
+              ) : (
+                <p className="mt-3 text-xs text-white/35">
+                  View only — you do not have KYC review privilege.
+                </p>
+              )}
             </div>
           ))}
         </IslandBody>

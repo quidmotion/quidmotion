@@ -8,6 +8,7 @@ import { features } from "@/lib/config/features";
 import {
   assertActive,
   assertAdmin,
+  assertPrivilege,
   assertSelfOrAdmin,
   loadActor,
 } from "./_authz";
@@ -322,7 +323,7 @@ export async function listUserDeposits(actorId: string, userId: string) {
 
 export async function listPendingDeposits(actorId: string) {
   const actor = await loadActor(actorId);
-  assertAdmin(actor);
+  await assertPrivilege(actor, "deposits.view");
   const db = getDb();
   const rows = (await db
     .select()
@@ -357,7 +358,7 @@ export async function listPendingDeposits(actorId: string) {
 
 export async function listAdminDeposits(actorId: string, limit = 50) {
   const actor = await loadActor(actorId);
-  assertAdmin(actor);
+  await assertPrivilege(actor, "deposits.view");
   const db = getDb();
   const rows = (await db
     .select()
@@ -392,7 +393,7 @@ export async function adminConfirmDeposit(
   note?: string,
 ) {
   const actor = await loadActor(actorId);
-  assertAdmin(actor);
+  await assertPrivilege(actor, "deposits.review");
   const db = getDb();
   const rows = (await db
     .select()
@@ -476,7 +477,7 @@ export async function adminRejectDeposit(
   note?: string,
 ) {
   const actor = await loadActor(actorId);
-  assertAdmin(actor);
+  await assertPrivilege(actor, "deposits.review");
   const db = getDb();
   const rows = (await db
     .select()

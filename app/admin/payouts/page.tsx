@@ -1,5 +1,4 @@
 export const dynamic = "force-dynamic";
-import { getAuth } from "@/lib/auth";
 import {
   listAdminWithdrawals,
 } from "@/lib/services/payouts";
@@ -7,6 +6,7 @@ import { formatUsd } from "@/lib/money";
 import { Island, IslandBody, IslandHeader } from "@/components/ui/Island";
 import { Badge } from "@/components/ui/Badge";
 import { reviewPayoutAction } from "@/lib/actions/admin";
+import { requireAdminPath, staffHasPrivilege } from "@/lib/admin/guard";
 
 function statusTone(status: string) {
   if (status === "pending_approval") return "warning" as const;
@@ -22,8 +22,9 @@ function statusLabel(status: string) {
 }
 
 export default async function AdminPayoutsPage() {
-  const session = await getAuth().getSession();
-  const all = await listAdminWithdrawals(session!.user.id);
+  const ctx = await requireAdminPath("/admin/payouts");
+  const canReview = await staffHasPrivilege(ctx, "withdrawals.review");
+  const all = await listAdminWithdrawals(ctx.user.id);
   const pending = all.filter((p: any) => p.status === "pending_approval");
   const processing = all.filter((p: any) => p.status === "processing");
   const history = all.filter(
@@ -51,7 +52,12 @@ export default async function AdminPayoutsPage() {
             <p className="text-sm text-white/40">No pending withdrawal requests.</p>
           )}
           {pending.map((p: any) => (
-            <WithdrawalCard key={p.id} p={p} mode="pending" />
+            <WithdrawalCard
+              key={p.id}
+              p={p}
+              mode="pending"
+              canReview={canReview}
+            />
           ))}
         </IslandBody>
       </Island>
@@ -69,7 +75,12 @@ export default async function AdminPayoutsPage() {
             </p>
           )}
           {processing.map((p: any) => (
-            <WithdrawalCard key={p.id} p={p} mode="processing" />
+            <WithdrawalCard
+              key={p.id}
+              p={p}
+              mode="processing"
+              canReview={canReview}
+            />
           ))}
         </IslandBody>
       </Island>
@@ -108,6 +119,7 @@ export default async function AdminPayoutsPage() {
 function WithdrawalCard({
   p,
   mode,
+  canReview,
 }: {
   p: {
     id: string;
@@ -123,6 +135,7 @@ function WithdrawalCard({
     note: string | null;
   };
   mode: "pending" | "processing";
+  canReview: boolean;
 }) {
   return (
     <div className="rounded-xl border border-white/8 bg-white/5 p-4">
@@ -151,72 +164,80 @@ function WithdrawalCard({
         </code>
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-2">
-        {mode === "pending" && (
-          <>
-            <form action={reviewPayoutAction}>
-              <input type="hidden" name="id" value={p.id} />
-              <input type="hidden" name="decision" value="approve" />
-              <button
-                type="submit"
-                className="rounded-full bg-emerald-500/20 px-4 py-1.5 text-xs font-medium text-emerald-300 hover:bg-emerald-500/30"
-              >
-                Approve → processing
-              </button>
-            </form>
-            <form action={reviewPayoutAction}>
-              <input type="hidden" name="id" value={p.id} />
-              <input type="hidden" name="decision" value="reject" />
-              <input type="hidden" name="note" value="Rejected by admin" />
-              <button
-                type="submit"
-                className="rounded-full bg-red-500/20 px-4 py-1.5 text-xs font-medium text-red-300 hover:bg-red-500/30"
-              >
-                Reject & refund
-              </button>
-            </form>
-          </>
-        )}
-        {mode === "processing" && (
-          <>
-            <form action={reviewPayoutAction}>
-              <input type="hidden" name="id" value={p.id} />
-              <input type="hidden" name="decision" value="complete" />
-              <input
-                type="hidden"
-                name="note"
-                value="Manual on-chain transfer completed by admin"
-              />
-              <button
-                type="submit"
-                className="rounded-full bg-emerald-500/20 px-4 py-1.5 text-xs font-medium text-emerald-300 hover:bg-emerald-500/30"
-              >
-                Mark completed
-              </button>
-            </form>
-            <form action={reviewPayoutAction}>
-              <input type="hidden" name="id" value={p.id} />
-              <input type="hidden" name="decision" value="reject" />
-              <input
-                type="hidden"
-                name="note"
-                value="Cancelled during processing — funds restored"
-              />
-              <button
-                type="submit"
-                className="rounded-full bg-red-500/20 px-4 py-1.5 text-xs font-medium text-red-300 hover:bg-red-500/30"
-              >
-                Cancel & refund
-              </button>
-            </form>
-          </>
-        )}
-      </div>
-      <p className="mt-2 text-[11px] text-white/30">
-        {mode === "pending"
-          ? "Approving moves status to processing. Then send crypto to the address above."
-          : "After you have sent the funds on-chain, mark completed to email the user."}
-      </p>
+      {canReview ? (
+        <>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {mode === "pending" && (
+              <>
+                <form action={reviewPayoutAction}>
+                  <input type="hidden" name="id" value={p.id} />
+                  <input type="hidden" name="decision" value="approve" />
+                  <button
+                    type="submit"
+                    className="rounded-full bg-emerald-500/20 px-4 py-1.5 text-xs font-medium text-emerald-300 hover:bg-emerald-500/30"
+                  >
+                    Approve → processing
+                  </button>
+                </form>
+                <form action={reviewPayoutAction}>
+                  <input type="hidden" name="id" value={p.id} />
+                  <input type="hidden" name="decision" value="reject" />
+                  <input type="hidden" name="note" value="Rejected by admin" />
+                  <button
+                    type="submit"
+                    className="rounded-full bg-red-500/20 px-4 py-1.5 text-xs font-medium text-red-300 hover:bg-red-500/30"
+                  >
+                    Reject & refund
+                  </button>
+                </form>
+              </>
+            )}
+            {mode === "processing" && (
+              <>
+                <form action={reviewPayoutAction}>
+                  <input type="hidden" name="id" value={p.id} />
+                  <input type="hidden" name="decision" value="complete" />
+                  <input
+                    type="hidden"
+                    name="note"
+                    value="Manual on-chain transfer completed by admin"
+                  />
+                  <button
+                    type="submit"
+                    className="rounded-full bg-emerald-500/20 px-4 py-1.5 text-xs font-medium text-emerald-300 hover:bg-emerald-500/30"
+                  >
+                    Mark completed
+                  </button>
+                </form>
+                <form action={reviewPayoutAction}>
+                  <input type="hidden" name="id" value={p.id} />
+                  <input type="hidden" name="decision" value="reject" />
+                  <input
+                    type="hidden"
+                    name="note"
+                    value="Cancelled during processing — funds restored"
+                  />
+                  <button
+                    type="submit"
+                    className="rounded-full bg-red-500/20 px-4 py-1.5 text-xs font-medium text-red-300 hover:bg-red-500/30"
+                  >
+                    Cancel & refund
+                  </button>
+                </form>
+              </>
+            )}
+          </div>
+          <p className="mt-2 text-[11px] text-white/30">
+            {mode === "pending"
+              ? "Approving moves status to processing. Then send crypto to the address above."
+              : "After you have sent the funds on-chain, mark completed to email the user."}
+          </p>
+        </>
+      ) : (
+        <p className="mt-3 text-xs text-white/35">
+          View only — you do not have withdrawal review privilege.
+        </p>
+      )}
     </div>
   );
 }

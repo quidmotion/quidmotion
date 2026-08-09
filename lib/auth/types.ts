@@ -1,8 +1,13 @@
 export type Role = "user" | "admin" | "support";
 
-/** v1 policy: support ≡ user for authorization. */
+/** Full platform admin only. */
 export function isAdmin(role: Role): boolean {
   return role === "admin";
+}
+
+/** Admin or support staff (may enter /admin with filtered privileges). */
+export function isStaff(role: Role): boolean {
+  return role === "admin" || role === "support";
 }
 
 export interface AuthUser {

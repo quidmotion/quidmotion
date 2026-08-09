@@ -5,6 +5,7 @@ import { SEAL_COOKIE, verifySealedToken } from "@/lib/auth/sealed";
 /**
  * Edge-safe gate only: verify sealed JWT cookie. No SQLite / Argon2.
  * Full session + suspended checks happen in dashboard/admin layouts.
+ * Admin area allows admin + support (page-level privilege checks filter further).
  */
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -31,7 +32,7 @@ export async function middleware(request: NextRequest) {
     return res;
   }
 
-  if (isAdmin && claims.role !== "admin") {
+  if (isAdmin && claims.role !== "admin" && claims.role !== "support") {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 

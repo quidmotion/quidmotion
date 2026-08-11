@@ -123,12 +123,14 @@ export async function fetchLivePrices(): Promise<
 
 async function listCachedLatestPrices() {
   const db = getDb();
-  const all = (await db
+  // Only scan recent rows (4 assets × ~20 cycles) instead of the full history table.
+  const recent = (await db
     .select()
     .from(priceSnapshots)
-    .orderBy(desc(priceSnapshots.asOf))) as any[];
-  const latest = new Map<string, (typeof all)[0]>();
-  for (const row of all) {
+    .orderBy(desc(priceSnapshots.asOf))
+    .limit(80)) as any[];
+  const latest = new Map<string, (typeof recent)[0]>();
+  for (const row of recent) {
     if (!latest.has(row.asset)) latest.set(row.asset, row);
   }
   return [...latest.values()];
@@ -308,7 +310,11 @@ export function simulateDepositConfirm(
   });
 }
 
-export async function listUserDeposits(actorId: string, userId: string) {
+export async function listUserDeposits(
+  actorId: string,
+  userId: string,
+  limit = 50,
+) {
   const actor = await loadActor(actorId);
   assertSelfOrAdmin(actor, userId);
   const db = getDb();
@@ -318,7 +324,8 @@ export async function listUserDeposits(actorId: string, userId: string) {
     .where(
       and(eq(transactions.userId, userId), eq(transactions.type, "deposit")),
     )
-    .orderBy(desc(transactions.createdAt))) as any[];
+    .orderBy(desc(transactions.createdAt))
+    .limit(limit)) as any[];
 }
 
 export async function listPendingDeposits(actorId: string) {

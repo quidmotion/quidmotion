@@ -1,6 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, inArray } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { properties } from "@/lib/db/schema";
 import { AppError } from "@/lib/errors";
@@ -32,16 +32,17 @@ export async function getProperty(id: string) {
 
 export async function listFeatured(limit = 6) {
   const db = getDb();
-  const rows = (await db
+  return (await db
     .select()
     .from(properties)
-    .orderBy(desc(properties.createdAt))) as any[];
-  return rows
-    .filter(
-      (p: any) =>
-        p.featured && (p.status === "live" || p.status === "funded"),
+    .where(
+      and(
+        eq(properties.featured, true),
+        inArray(properties.status, ["live", "funded"]),
+      ),
     )
-    .slice(0, limit);
+    .orderBy(desc(properties.createdAt))
+    .limit(limit)) as any[];
 }
 
 export async function listAllAdmin(actorId: string) {

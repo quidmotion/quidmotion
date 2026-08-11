@@ -1,5 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
+import { cache } from "react";
 import { eq, and, inArray, gte, desc } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import {
@@ -20,6 +21,9 @@ const HOURS_PER_YEAR = 365 * 24;
 /** Snapshot at most once per hour per user (stops page-load spam). */
 const SNAPSHOT_MIN_INTERVAL_MS = 60 * 60 * 1000;
 
+/** Whole-hour accrual: sub-hour re-entry cannot produce yield. */
+const ACCRUE_MIN_INTERVAL_MS = 60 * 60 * 1000;
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -34,28 +38,28 @@ function parseMultiplier(raw: unknown, fallback: number): number {
   return n;
 }
 
-/** Fetch dynamic Lock-up → share of Default Portfolio Growth APY. */
-export async function getLockupMultipliers(): Promise<Record<number, number>> {
-  const db = getDb();
-  const m90Rows = (await db
-    .select()
-    .from(platformSettings)
-    .where(eq(platformSettings.key, "lockup_mult_90"))) as any[];
-  const m180Rows = (await db
-    .select()
-    .from(platformSettings)
-    .where(eq(platformSettings.key, "lockup_mult_180"))) as any[];
-  const m365Rows = (await db
-    .select()
-    .from(platformSettings)
-    .where(eq(platformSettings.key, "lockup_mult_365"))) as any[];
-
-  return {
-    90: parseMultiplier(m90Rows[0]?.value, 0.33),
-    180: parseMultiplier(m180Rows[0]?.value, 0.66),
-    365: parseMultiplier(m365Rows[0]?.value, 1.0),
-  };
-}
+/** Fetch dynamic Lock-up → share of Default Portfolio Growth APY (one query). */
+export const getLockupMultipliers = cache(
+  async (): Promise<Record<number, number>> => {
+    const db = getDb();
+    const rows = (await db
+      .select()
+      .from(platformSettings)
+      .where(
+        inArray(platformSettings.key, [
+          "lockup_mult_90",
+          "lockup_mult_180",
+          "lockup_mult_365",
+        ]),
+      )) as any[];
+    const byKey = new Map(rows.map((r: any) => [r.key as string, r.value]));
+    return {
+      90: parseMultiplier(byKey.get("lockup_mult_90"), 0.33),
+      180: parseMultiplier(byKey.get("lockup_mult_180"), 0.66),
+      365: parseMultiplier(byKey.get("lockup_mult_365"), 1.0),
+    };
+  },
+);
 
 export async function lockupMultiplier(lockupDays: number): Promise<number> {
   const mults = await getLockupMultipliers();
@@ -97,10 +101,11 @@ export async function refreshDefaultPortfolioRates(force = false) {
   return updated;
 }
 
-export async function listDefaultPortfolioRates() {
+/** Request-memoized rates list (refresh-if-stale once per request). */
+export const listDefaultPortfolioRates = cache(async () => {
   await refreshDefaultPortfolioRates(false);
   return (await getDb().select().from(defaultPortfolioRates)) as any[];
-}
+});
 
 /**
  * Resolve Default Portfolio Growth APY (bps) from total invested principal.
@@ -168,134 +173,171 @@ async function planLockupDaysByPlanId(
   return map;
 }
 
+export type AccrueResult = {
+  accruedCents: number;
+  investments: {
+    id: string;
+    yieldCents: number;
+    effectiveApyBps: number;
+  }[];
+  defaultApyBps: number;
+};
+
 /**
  * Accrue hourly growth on each active investment.
  * Only invested principal is eligible.
  * Effective APY = default tier APY × **plan** lock-up multiplier (not user profile).
  * Yield is credited via ledger type "yield" (available cash) and tracked on roiToDateCents.
+ *
+ * Request-memoized: at most one full run per userId per HTTP request.
+ * Fast path: if every active investment was accrued within the current hour,
+ * skip the write loop (whole-hour math cannot produce yield yet).
  */
-export async function accrueUserGrowth(userId: string) {
-  await refreshDefaultPortfolioRates(false);
-  const db = getDb();
-  const investments = (await db
-    .select()
-    .from(userInvestments)
-    .where(
-      and(
-        eq(userInvestments.userId, userId),
-        inArray(userInvestments.status, ["active", "maturing"]),
-      ),
-    )) as any[];
+export const accrueUserGrowth = cache(
+  async (userId: string): Promise<AccrueResult> => {
+    const db = getDb();
+    const investments = (await db
+      .select()
+      .from(userInvestments)
+      .where(
+        and(
+          eq(userInvestments.userId, userId),
+          inArray(userInvestments.status, ["active", "maturing"]),
+        ),
+      )) as any[];
 
-  if (investments.length === 0) {
-    return {
-      accruedCents: 0,
-      investments: [] as {
-        id: string;
-        yieldCents: number;
-        effectiveApyBps: number;
-      }[],
-      defaultApyBps: 0,
-    };
-  }
-
-  const totalInvested = investments.reduce(
-    (s: number, i: any) => sumCents(s, i.principalCents),
-    0,
-  );
-  const defaultApyBps = await resolveDefaultApyBps(totalInvested);
-  const planLockups = await planLockupDaysByPlanId(
-    investments.map((i: any) => i.planId as string),
-  );
-  const multCache = new Map<number, number>();
-  async function multFor(days: number) {
-    if (!multCache.has(days)) {
-      multCache.set(days, await lockupMultiplier(days));
-    }
-    return multCache.get(days)!;
-  }
-
-  const now = Date.now();
-  let totalYield = 0;
-  const details: {
-    id: string;
-    yieldCents: number;
-    effectiveApyBps: number;
-  }[] = [];
-
-  for (const inv of investments) {
-    const principal = asCents(inv.principalCents);
-    const roiToDate = asCents(inv.roiToDateCents);
-    warnIfInsaneCents("investment.principalCents", principal, {
-      userId,
-      investmentId: inv.id,
-    });
-    warnIfInsaneCents("investment.roiToDateCents", roiToDate, {
-      userId,
-      investmentId: inv.id,
-    });
-
-    const planDays = planLockups.get(inv.planId) ?? 90;
-    const mult = await multFor(planDays);
-    const effectiveApyBps = Math.round(defaultApyBps * mult);
-
-    const last = inv.lastAccruedAt
-      ? new Date(inv.lastAccruedAt).getTime()
-      : new Date(inv.startedAt).getTime();
-    const elapsedMs = Math.max(0, now - last);
-    const hours = elapsedMs / (60 * 60 * 1000);
-
-    // Accrue only whole hours to keep deterministic / avoid float spam
-    const wholeHours = Math.floor(hours);
-    if (wholeHours <= 0 || effectiveApyBps <= 0) {
-      if (asCents(inv.effectiveApyBps) !== effectiveApyBps) {
-        await db
-          .update(userInvestments)
-          .set({ effectiveApyBps })
-          .where(eq(userInvestments.id, inv.id));
-      }
-      details.push({ id: inv.id, yieldCents: 0, effectiveApyBps });
-      continue;
+    if (investments.length === 0) {
+      return {
+        accruedCents: 0,
+        investments: [],
+        defaultApyBps: 0,
+      };
     }
 
-    const apy = effectiveApyBps / 10000;
-    const yieldCents = Math.floor(
-      principal * apy * (wholeHours / HOURS_PER_YEAR),
+    const now = Date.now();
+    // Fast path: no whole hour has elapsed for any position → no yield possible.
+    // Still allow rate refresh later only when we enter the full path.
+    const allFresh = investments.every((inv: any) => {
+      const last = inv.lastAccruedAt
+        ? new Date(inv.lastAccruedAt).getTime()
+        : new Date(inv.startedAt).getTime();
+      return now - last < ACCRUE_MIN_INTERVAL_MS;
+    });
+
+    if (allFresh) {
+      // Lightweight default APY for callers that only need the band display.
+      // Uses cached listDefaultPortfolioRates (may refresh stale tiers once).
+      const totalInvested = investments.reduce(
+        (s: number, i: any) => sumCents(s, i.principalCents),
+        0,
+      );
+      const defaultApyBps = await resolveDefaultApyBps(totalInvested);
+      return {
+        accruedCents: 0,
+        investments: investments.map((inv: any) => ({
+          id: inv.id,
+          yieldCents: 0,
+          effectiveApyBps: asCents(inv.effectiveApyBps) || 0,
+        })),
+        defaultApyBps,
+      };
+    }
+
+    await refreshDefaultPortfolioRates(false);
+
+    const totalInvested = investments.reduce(
+      (s: number, i: any) => sumCents(s, i.principalCents),
+      0,
     );
-
-    const accruedAt = new Date(
-      last + wholeHours * 60 * 60 * 1000,
-    ).toISOString();
-
-    await db
-      .update(userInvestments)
-      .set({
-        roiToDateCents: sumCents(roiToDate, yieldCents),
-        lastAccruedAt: accruedAt,
-        effectiveApyBps,
-      })
-      .where(eq(userInvestments.id, inv.id));
-
-    if (yieldCents > 0) {
-      // Credit yield once via ledger (updates available balance)
-      await postLedgerEntry({
-        userId,
-        type: "yield",
-        amountCents: yieldCents,
-        refType: "investment",
-        refId: inv.id,
-        note: `Growth yield (${wholeHours}h @ ${(effectiveApyBps / 100).toFixed(2)}% APY)`,
-      });
-      totalYield += yieldCents;
+    const defaultApyBps = await resolveDefaultApyBps(totalInvested);
+    const planLockups = await planLockupDaysByPlanId(
+      investments.map((i: any) => i.planId as string),
+    );
+    const mults = await getLockupMultipliers();
+    function multFor(days: number) {
+      if (mults[days] !== undefined) return mults[days];
+      if (days <= 90) return mults[90];
+      if (days <= 180) return mults[180];
+      return mults[365];
     }
 
-    details.push({ id: inv.id, yieldCents, effectiveApyBps });
-  }
+    let totalYield = 0;
+    const details: AccrueResult["investments"] = [];
 
-  await maybeSnapshotPortfolio(userId);
+    for (const inv of investments) {
+      const principal = asCents(inv.principalCents);
+      const roiToDate = asCents(inv.roiToDateCents);
+      warnIfInsaneCents("investment.principalCents", principal, {
+        userId,
+        investmentId: inv.id,
+      });
+      warnIfInsaneCents("investment.roiToDateCents", roiToDate, {
+        userId,
+        investmentId: inv.id,
+      });
 
-  return { accruedCents: totalYield, investments: details, defaultApyBps };
-}
+      const planDays = planLockups.get(inv.planId) ?? 90;
+      const mult = multFor(planDays);
+      const effectiveApyBps = Math.round(defaultApyBps * mult);
+
+      const last = inv.lastAccruedAt
+        ? new Date(inv.lastAccruedAt).getTime()
+        : new Date(inv.startedAt).getTime();
+      const elapsedMs = Math.max(0, now - last);
+      const hours = elapsedMs / (60 * 60 * 1000);
+
+      // Accrue only whole hours to keep deterministic / avoid float spam
+      const wholeHours = Math.floor(hours);
+      if (wholeHours <= 0 || effectiveApyBps <= 0) {
+        if (asCents(inv.effectiveApyBps) !== effectiveApyBps) {
+          await db
+            .update(userInvestments)
+            .set({ effectiveApyBps })
+            .where(eq(userInvestments.id, inv.id));
+        }
+        details.push({ id: inv.id, yieldCents: 0, effectiveApyBps });
+        continue;
+      }
+
+      const apy = effectiveApyBps / 10000;
+      const yieldCents = Math.floor(
+        principal * apy * (wholeHours / HOURS_PER_YEAR),
+      );
+
+      const accruedAt = new Date(
+        last + wholeHours * 60 * 60 * 1000,
+      ).toISOString();
+
+      await db
+        .update(userInvestments)
+        .set({
+          roiToDateCents: sumCents(roiToDate, yieldCents),
+          lastAccruedAt: accruedAt,
+          effectiveApyBps,
+        })
+        .where(eq(userInvestments.id, inv.id));
+
+      if (yieldCents > 0) {
+        // Credit yield once via ledger (updates available balance)
+        await postLedgerEntry({
+          userId,
+          type: "yield",
+          amountCents: yieldCents,
+          refType: "investment",
+          refId: inv.id,
+          note: `Growth yield (${wholeHours}h @ ${(effectiveApyBps / 100).toFixed(2)}% APY)`,
+        });
+        totalYield += yieldCents;
+      }
+
+      details.push({ id: inv.id, yieldCents, effectiveApyBps });
+    }
+
+    await maybeSnapshotPortfolio(userId);
+
+    return { accruedCents: totalYield, investments: details, defaultApyBps };
+  },
+);
 
 /** Insert portfolio snapshot at most once per hour. */
 async function maybeSnapshotPortfolio(userId: string) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Input";
 import { depositAction } from "@/lib/actions/dashboard";
@@ -35,26 +35,8 @@ export function DepositForm({
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
   const [pending, start] = useTransition();
-  const [prices, setPrices] = useState<Price[]>(initialPrices ?? []);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const res = await fetch("/api/prices");
-        const data = await res.json();
-        if (!cancelled && data.ok) setPrices(data.prices);
-      } catch {
-        /* keep initial */
-      }
-    }
-    load();
-    const t = setInterval(load, 60_000);
-    return () => {
-      cancelled = true;
-      clearInterval(t);
-    };
-  }, []);
+  // Use server-provided prices only — LivePrices owns the single client poller.
+  const prices = initialPrices ?? [];
 
   const current = walletList.find((a) => a.asset === asset) ?? walletList[0];
   const price = prices.find((p) => p.asset === asset);

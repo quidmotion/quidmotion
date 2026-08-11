@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 import { getAuth } from "@/lib/auth";
 import { formatUsd } from "@/lib/money";
 import { getPortfolioSummary, listPlans } from "@/lib/services/investments";
-import { getBalances } from "@/lib/services/ledger";
 import { listUpcoming } from "@/lib/services/payouts";
 import { listFeatured } from "@/lib/services/properties";
 import { listNotifications } from "@/lib/services/notifications";
@@ -13,8 +12,10 @@ import { features } from "@/lib/config/features";
 import { Island, IslandBody, IslandHeader } from "@/components/ui/Island";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { PortfolioChart } from "@/components/dashboard/PortfolioChart";
-import { YieldDonut } from "@/components/dashboard/YieldDonut";
+import {
+  LazyPortfolioChart,
+  LazyYieldDonut,
+} from "@/components/dashboard/DashboardCharts";
 import { Eye, Plus } from "lucide-react";
 
 export default async function DashboardPage() {
@@ -23,21 +24,24 @@ export default async function DashboardPage() {
   const { user } = session;
   const uid = user.id;
 
-  const summary = await getPortfolioSummary(uid, uid);
-  const balance = await getBalances(uid);
-  const upcoming = await listUpcoming(uid, uid);
-  const properties = await listFeatured(6);
-  const notes = await listNotifications(uid, uid, 3);
-  const plans = (await listPlans()).slice(0, 2);
+  const [summary, upcoming, properties, notes, plans, rewards] =
+    await Promise.all([
+      getPortfolioSummary(uid, uid),
+      listUpcoming(uid, uid),
+      listFeatured(6),
+      listNotifications(uid, uid, 3),
+      listPlans(),
+      features.referrals
+        ? getRewards(uid, uid).catch(() => null)
+        : Promise.resolve(null),
+    ]);
 
-  let rewards = null;
-  if (features.referrals) {
-    try {
-      rewards = await getRewards(uid, uid);
-    } catch {
-      rewards = null;
-    }
-  }
+  const planSlice = plans.slice(0, 2);
+  // Balances already included in portfolio summary — no second getBalances call.
+  const balance = {
+    availableCents: summary.availableCents,
+    lockedCents: summary.lockedCents,
+  };
 
   const firstName = user.name.split(" ")[0];
   const gain = summary.changeCents;
@@ -144,12 +148,12 @@ export default async function DashboardPage() {
               <Badge tone="accent">Live chart</Badge>
             </IslandHeader>
             <IslandBody className="min-w-0 overflow-x-clip">
-              <PortfolioChart data={summary.series} />
+              <LazyPortfolioChart data={summary.series} />
             </IslandBody>
           </Island>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            {plans.map((plan: any) => (
+            {planSlice.map((plan: any) => (
               <Island key={plan.id}>
                 <IslandBody className="flex h-full flex-col pt-5">
                   <div className="flex items-center justify-between">
@@ -178,7 +182,7 @@ export default async function DashboardPage() {
                 </IslandBody>
               </Island>
             ))}
-            {plans.length === 0 && (
+            {planSlice.length === 0 && (
               <Island className="sm:col-span-2">
                 <IslandBody className="pt-5 text-sm text-white/50">
                   No plans seeded yet. Run <code>npm run db:seed</code>.
@@ -262,7 +266,7 @@ export default async function DashboardPage() {
             </IslandHeader>
             <IslandBody>
               {mixTotal > 0 ? (
-                <YieldDonut totalCents={mixTotal} segments={mixSegments} />
+                <LazyYieldDonut totalCents={mixTotal} segments={mixSegments} />
               ) : (
                 <p className="text-sm text-white/40">
                   Deposit funds to see your portfolio mix.

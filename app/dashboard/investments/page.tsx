@@ -3,7 +3,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getAuth } from "@/lib/auth";
 import {
-  listUserInvestments,
   listPlans,
   getPortfolioSummary,
 } from "@/lib/services/investments";
@@ -18,9 +17,14 @@ import { updateLockup } from "@/lib/actions/lockup";
 export default async function InvestmentsPage() {
   const session = await getAuth().getSession();
   if (!session) redirect("/login");
-  const inv = await listUserInvestments(session.user.id, session.user.id);
-  const plans = await listPlans();
-  const summary = await getPortfolioSummary(session.user.id, session.user.id);
+
+  // Single portfolio summary: accrues once, returns investments list.
+  // Avoids prior double-accrue (listUserInvestments + getPortfolioSummary).
+  const [summary, plans] = await Promise.all([
+    getPortfolioSummary(session.user.id, session.user.id),
+    listPlans(),
+  ]);
+  const inv = summary.investments;
   const planById = Object.fromEntries(plans.map((p: any) => [p.id, p]));
 
   async function changeLockupAction(formData: FormData) {

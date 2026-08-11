@@ -11,7 +11,10 @@ import {
 } from "@/lib/actions/support-chat";
 import type { ChatMessage } from "@/lib/support/types";
 
-const POLL_MS = 2500;
+/** Open panel: near-realtime. Closed idle: light unread check. Hidden tab: rare. */
+const POLL_OPEN_MS = 3000;
+const POLL_CLOSED_MS = 20000;
+const POLL_HIDDEN_MS = 60000;
 
 export function SupportChatWidget() {
   const pathname = usePathname();
@@ -27,6 +30,7 @@ export function SupportChatWidget() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [onDashboardMobile, setOnDashboardMobile] = useState(false);
+  const [tabVisible, setTabVisible] = useState(true);
   const listRef = useRef<HTMLDivElement>(null);
   const openRef = useRef(open);
   openRef.current = open;
@@ -42,6 +46,15 @@ export function SupportChatWidget() {
     window.addEventListener("resize", check);
     return () => window.removeEventListener("resize", check);
   }, [onDashboard]);
+
+  useEffect(() => {
+    function onVisibility() {
+      setTabVisible(document.visibilityState === "visible");
+    }
+    onVisibility();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
 
   const scrollToBottom = useCallback(() => {
     requestAnimationFrame(() => {
@@ -74,9 +87,14 @@ export function SupportChatWidget() {
   useEffect(() => {
     if (onAdminSupport) return;
     void poll();
-    const id = setInterval(() => void poll(), POLL_MS);
+    const intervalMs = !tabVisible
+      ? POLL_HIDDEN_MS
+      : open
+        ? POLL_OPEN_MS
+        : POLL_CLOSED_MS;
+    const id = setInterval(() => void poll(), intervalMs);
     return () => clearInterval(id);
-  }, [poll, onAdminSupport, open]);
+  }, [poll, onAdminSupport, open, tabVisible]);
 
   useEffect(() => {
     if (open) scrollToBottom();

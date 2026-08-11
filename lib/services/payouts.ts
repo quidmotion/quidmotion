@@ -44,14 +44,31 @@ export async function listUpcoming(actorId: string, userId: string) {
     .orderBy(desc(payouts.createdAt))) as any[];
 }
 
-export async function listUserPayouts(actorId: string, userId: string) {
+export async function listUserPayouts(
+  actorId: string,
+  userId: string,
+  opts?: { payoutType?: "withdrawal" | "distribution"; limit?: number },
+) {
   const actor = await loadActor(actorId);
   assertSelfOrAdmin(actor, userId);
   const db = getDb();
+  const whereClause = opts?.payoutType
+    ? and(eq(payouts.userId, userId), eq(payouts.payoutType, opts.payoutType))
+    : eq(payouts.userId, userId);
+
+  if (opts?.limit != null) {
+    return (await db
+      .select()
+      .from(payouts)
+      .where(whereClause)
+      .orderBy(desc(payouts.createdAt))
+      .limit(opts.limit)) as any[];
+  }
+
   return (await db
     .select()
     .from(payouts)
-    .where(eq(payouts.userId, userId))
+    .where(whereClause)
     .orderBy(desc(payouts.createdAt))) as any[];
 }
 

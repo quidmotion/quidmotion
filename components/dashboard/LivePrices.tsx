@@ -28,13 +28,15 @@ export function LivePrices({ initial }: { initial?: Price[] }) {
         if (!cancelled) setError("Price feed offline");
       }
     }
-    tick();
+    // Server already provided prices — skip immediate duplicate /api/prices hit.
+    // Refresh on the interval only.
     const id = setInterval(tick, 60_000);
+    if (!initial?.length) void tick();
     return () => {
       cancelled = true;
       clearInterval(id);
     };
-  }, []);
+  }, [initial?.length]);
 
   if (!prices.length && error) {
     return <p className="text-xs text-red-400">{error}</p>;

@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { users, supportPrivileges } from "@/lib/db/schema";
@@ -58,8 +59,11 @@ export function assertKycApproved(actor: AuthUser): void {
   }
 }
 
-/** Load fresh user row for service calls (role/status/kyc may have changed). */
-export async function loadActor(actorId: string): Promise<AuthUser> {
+/**
+ * Load user row for service calls (role/status/kyc).
+ * Request-memoized so layout + page + N services share one DB hit.
+ */
+export const loadActor = cache(async (actorId: string): Promise<AuthUser> => {
   const db = getDb();
   const rows = (await db
     .select()
@@ -79,7 +83,7 @@ export async function loadActor(actorId: string): Promise<AuthUser> {
     createdAt: row.createdAt,
     lockupDays: row.lockupDays ?? 90,
   };
-}
+});
 
 export async function loadPrivileges(actor: AuthUser): Promise<PrivilegeMap> {
   if (isAdmin(actor.role as Role)) return allPrivilegesOn();

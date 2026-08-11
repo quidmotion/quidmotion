@@ -13,12 +13,12 @@ export async function listNotifications(
   const actor = await loadActor(actorId);
   assertSelfOrAdmin(actor, userId);
   const db = getDb();
-  const rows = (await db
+  return (await db
     .select()
     .from(notifications)
     .where(eq(notifications.userId, userId))
-    .orderBy(desc(notifications.createdAt))) as any[];
-  return rows.slice(0, limit);
+    .orderBy(desc(notifications.createdAt))
+    .limit(limit)) as any[];
 }
 
 export async function createNotification(input: {

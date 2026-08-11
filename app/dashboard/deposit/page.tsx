@@ -24,16 +24,14 @@ function statusTone(status: string) {
 export default async function DepositPage() {
   const session = await getAuth().getSession();
   if (!session) redirect("/login");
-  const balance = await getBalances(session.user.id);
+
   const assets = listSupportedAssets();
-  const addresses = await getAllDepositAddresses();
-  const deposits = await listUserDeposits(session.user.id, session.user.id);
-  let prices: Awaited<ReturnType<typeof getPrices>> = [];
-  try {
-    prices = await getPrices();
-  } catch {
-    prices = [];
-  }
+  const [balance, addresses, deposits, prices] = await Promise.all([
+    getBalances(session.user.id),
+    getAllDepositAddresses(),
+    listUserDeposits(session.user.id, session.user.id),
+    getPrices().catch(() => [] as Awaited<ReturnType<typeof getPrices>>),
+  ]);
 
   return (
     <div className="mx-auto max-w-xl space-y-3 pb-4 sm:space-y-4 sm:pb-8">

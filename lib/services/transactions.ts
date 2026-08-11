@@ -1,5 +1,5 @@
 import "server-only";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, count } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { transactions } from "@/lib/db/schema";
 import { assertSelfOrAdmin, loadActor } from "./_authz";
@@ -13,23 +13,27 @@ export async function listTransactions(
   assertSelfOrAdmin(actor, userId);
   const page = opts.page ?? 1;
   const pageSize = opts.pageSize ?? 20;
+  const start = (page - 1) * pageSize;
   const db = getDb();
 
-  let rows = (await db
-    .select()
-    .from(transactions)
-    .where(eq(transactions.userId, userId))
-    .orderBy(desc(transactions.createdAt))) as any[];
+  const whereClause = opts.type
+    ? and(eq(transactions.userId, userId), eq(transactions.type, opts.type as any))
+    : eq(transactions.userId, userId);
 
-  if (opts.type) {
-    rows = rows.filter((r: any) => r.type === opts.type);
-  }
+  const [countRows, items] = await Promise.all([
+    db.select({ n: count() }).from(transactions).where(whereClause),
+    db
+      .select()
+      .from(transactions)
+      .where(whereClause)
+      .orderBy(desc(transactions.createdAt))
+      .limit(pageSize)
+      .offset(start),
+  ]);
 
-  const total = rows.length;
-  const start = (page - 1) * pageSize;
   return {
-    items: rows.slice(start, start + pageSize),
-    total,
+    items: items as any[],
+    total: Number((countRows as any[])[0]?.n ?? 0),
     page,
     pageSize,
   };

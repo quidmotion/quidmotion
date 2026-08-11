@@ -1,6 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { eq, desc } from "drizzle-orm";
+import { cache } from "react";
+import { eq, desc, and, gte } from "drizzle-orm";
 import type { InferSelectModel } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import {
@@ -31,10 +32,22 @@ import {
 export type TimeRange = "1D" | "7D" | "6M" | "YTD" | "1Y" | "All";
 export type InvestmentPlan = InferSelectModel<typeof investmentPlans>;
 
-export async function listPlans(activeOnly = true): Promise<InvestmentPlan[]> {
-  const db = getDb();
-  const rows = (await db.select().from(investmentPlans)) as InvestmentPlan[];
-  return activeOnly ? rows.filter((p: any) => p.status === "active") : rows;
+const listPlansCached = cache(
+  async (mode: "active" | "all"): Promise<InvestmentPlan[]> => {
+    const db = getDb();
+    if (mode === "active") {
+      return (await db
+        .select()
+        .from(investmentPlans)
+        .where(eq(investmentPlans.status, "active"))) as InvestmentPlan[];
+    }
+    return (await db.select().from(investmentPlans)) as InvestmentPlan[];
+  },
+);
+
+/** Request-memoized plan list (shared across home + investments). */
+export function listPlans(activeOnly = true): Promise<InvestmentPlan[]> {
+  return listPlansCached(activeOnly ? "active" : "all");
 }
 
 export async function getPlan(
@@ -200,14 +213,18 @@ export async function getPortfolioSummary(actorId: string, userId: string) {
   const actor = await loadActor(actorId);
   assertSelfOrAdmin(actor, userId);
 
-  // Accrue once per request — listUserInvestments skips a second pass
+  // Accrue first so balances / investment ROI reflect any newly credited yield.
+  // React.cache ensures a second call in this request is a no-op.
   const growth = await accrueUserGrowth(userId);
-  const growthInfo = await describeGrowthForUser(userId);
 
-  const bal = await getBalances(userId);
-  const investments = await listUserInvestments(actorId, userId, {
-    skipAccrue: true,
-  });
+  // Independent reads can run in parallel after accrual.
+  const [growthInfo, bal, investments, series1Y] = await Promise.all([
+    describeGrowthForUser(userId),
+    getBalances(userId),
+    listUserInvestments(actorId, userId, { skipAccrue: true }),
+    getPerformanceSeries(actorId, userId, "1Y"),
+  ]);
+
   const activePrincipal = investments
     .filter((i: any) => i.status === "active" || i.status === "maturing")
     .reduce((s: number, i: any) => sumCents(s, i.principalCents), 0);
@@ -217,7 +234,12 @@ export async function getPortfolioSummary(actorId: string, userId: string) {
   );
   // Available already includes credited yield; locked is principal
   const totalValueCents = sumCents(bal.availableCents, bal.lockedCents);
-  const series7D = await getPerformanceSeries(actorId, userId, "7D");
+
+  // Derive 7D change from the same 1Y series (one snapshot query, not two)
+  const cut7D = Date.now() - 7 * 86400000;
+  const series7D = series1Y.filter(
+    (s) => new Date(s.asOf).getTime() >= cut7D,
+  );
   const first = asCents(series7D[0]?.valueCents ?? totalValueCents);
   const last = asCents(
     series7D[series7D.length - 1]?.valueCents ?? totalValueCents,
@@ -225,8 +247,6 @@ export async function getPortfolioSummary(actorId: string, userId: string) {
   const changeCents = last - first;
   const changeBps =
     first > 0 ? Math.round((changeCents / first) * 10000) : 0;
-
-  const series1Y = await getPerformanceSeries(actorId, userId, "1Y");
 
   return {
     totalCents: totalValueCents,
@@ -258,11 +278,6 @@ export async function getPerformanceSeries(
   const actor = await loadActor(actorId);
   assertSelfOrAdmin(actor, userId);
   const db = getDb();
-  const all = (await db
-    .select()
-    .from(portfolioValueSnapshots)
-    .where(eq(portfolioValueSnapshots.userId, userId))
-    .orderBy(portfolioValueSnapshots.asOf)) as any[];
 
   const now = Date.now();
   const cutoffs: Record<TimeRange, number> = {
@@ -274,8 +289,26 @@ export async function getPerformanceSeries(
     All: 0,
   };
   const cut = cutoffs[range];
-  const filtered = all.filter((s: any) => new Date(s.asOf).getTime() >= cut);
-  return filtered.map((s: any) => ({
+
+  const rows =
+    cut > 0
+      ? ((await db
+          .select()
+          .from(portfolioValueSnapshots)
+          .where(
+            and(
+              eq(portfolioValueSnapshots.userId, userId),
+              gte(portfolioValueSnapshots.asOf, new Date(cut).toISOString()),
+            ),
+          )
+          .orderBy(portfolioValueSnapshots.asOf)) as any[])
+      : ((await db
+          .select()
+          .from(portfolioValueSnapshots)
+          .where(eq(portfolioValueSnapshots.userId, userId))
+          .orderBy(portfolioValueSnapshots.asOf)) as any[]);
+
+  return rows.map((s: any) => ({
     asOf: s.asOf,
     valueCents: asCents(s.valueCents),
   }));

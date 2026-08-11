@@ -1,6 +1,7 @@
 import "server-only";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { cookies } from "next/headers";
+import { cache } from "react";
 import { eq, and, isNull, gt } from "drizzle-orm";
 import { hashPassword, verifyPassword } from "@/lib/crypto/password";
 import { getDb } from "@/lib/db";
@@ -111,27 +112,33 @@ async function createSessionForUser(
   };
 }
 
-async function resolveSessionFromToken(token: string | null): Promise<Session | null> {
-  if (!token) return null;
-  const db = getDb();
-  const rows = (await db
-    .select()
-    .from(sessions)
-    .where(eq(sessions.tokenHash, hashToken(token)))) as any[];
-  const row = rows[0];
-  if (!row) return null;
-  if (new Date(row.expiresAt).getTime() < Date.now()) return null;
+/** Request-memoized session resolve so layout + page share one DB round-trip. */
+const resolveSessionFromToken = cache(
+  async (token: string | null): Promise<Session | null> => {
+    if (!token) return null;
+    const db = getDb();
+    const rows = (await db
+      .select()
+      .from(sessions)
+      .where(eq(sessions.tokenHash, hashToken(token)))) as any[];
+    const row = rows[0];
+    if (!row) return null;
+    if (new Date(row.expiresAt).getTime() < Date.now()) return null;
 
-  const userRows = (await db.select().from(users).where(eq(users.id, row.userId))) as any[];
-  const user = userRows[0];
-  if (!user || user.status === "suspended") return null;
+    const userRows = (await db
+      .select()
+      .from(users)
+      .where(eq(users.id, row.userId))) as any[];
+    const user = userRows[0];
+    if (!user || user.status === "suspended") return null;
 
-  return {
-    user: toAuthUser(user),
-    expiresAt: row.expiresAt,
-    sessionId: row.id,
-  };
-}
+    return {
+      user: toAuthUser(user),
+      expiresAt: row.expiresAt,
+      sessionId: row.id,
+    };
+  },
+);
 
 export function createLocalAuth(): AuthAdapter {
   return {

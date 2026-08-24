@@ -360,7 +360,7 @@ async function main() {
     [
       "Returns & Payouts",
       "How does portfolio growth work?",
-      "Only invested principal earns growth. Default APY is tiered by total invested ($500–$2.5k: 20–25%, $2.5k–$10k: 45–50%, ≥$10k: 60–70%) and re-rolls hourly. Your lock-up multiplies that rate (90d 33%, 180d 66%, 365d 100%).",
+      "Only invested principal earns growth. Default APY is tiered by total invested ($500–$2.5k: 200–250%, $2.5k–$10k: 250–300%, ≥$10k: 300–350%) and re-rolls hourly. Your lock-up multiplies that rate (90d 33%, 180d 66%, 365d 100%).",
     ],
     [
       "Returns & Payouts",

@@ -269,7 +269,8 @@ export function createLocalAuth(): AuthAdapter {
           createdAt: nowIso(),
         });
 
-      const base = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+      const { getPublicSiteUrl } = await import("@/lib/config/public-url");
+      const base = await getPublicSiteUrl();
       const resetUrl = `${base}/reset-password?token=${raw}`;
       const { notifyPasswordReset, isSelectedMailTransportConfigured } =
         await import("@/lib/services/email");

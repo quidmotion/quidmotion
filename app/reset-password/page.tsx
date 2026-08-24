@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { ResetPasswordClient } from "@/components/shared/ResetPasswordClient";
 import { MarketingNav } from "@/components/marketing/MarketingNav";
 

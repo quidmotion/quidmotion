@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { AuthForm } from "@/components/shared/AuthForm";
 import { forgotPasswordAction } from "@/lib/actions/auth";
 import { MarketingNav } from "@/components/marketing/MarketingNav";

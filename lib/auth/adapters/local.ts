@@ -270,7 +270,12 @@ export function createLocalAuth(): AuthAdapter {
         });
 
       const base = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-      console.info(`[auth] reset link: ${base}/reset-password?token=${raw}`);
+      const resetUrl = `${base}/reset-password?token=${raw}`;
+      const { notifyPasswordReset } = await import("@/lib/services/email");
+      await notifyPasswordReset(user.email, user.name, resetUrl);
+      if (!process.env.RESEND_API_KEY?.trim()) {
+        console.info(`[auth] reset link (no RESEND_API_KEY): ${resetUrl}`);
+      }
     },
 
     async resetPassword(token: string, newPassword: string): Promise<void> {

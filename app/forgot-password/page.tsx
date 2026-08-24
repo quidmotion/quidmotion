@@ -11,7 +11,7 @@ export default function ForgotPasswordPage() {
       <div className="px-4 py-16">
         <AuthForm
           title="Reset password"
-          subtitle="We'll log a reset link to the server console in local dev."
+          subtitle="Enter your account email and we'll send a reset link if it exists."
           action={forgotPasswordAction}
           submitLabel="Send reset link"
           mode="forgot"

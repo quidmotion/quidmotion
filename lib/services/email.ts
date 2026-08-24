@@ -21,7 +21,12 @@ export type EmailKind =
   | "kyc_rejected"
   | "transfer_sent"
   | "transfer_received"
+  | "password_reset"
   | "generic";
+
+export function isResendConfigured() {
+  return Boolean(process.env.RESEND_API_KEY?.trim());
+}
 
 function nowIso() {
   return new Date().toISOString();
@@ -74,7 +79,7 @@ async function deliverViaProvider(input: {
   html: string;
   text: string;
 }): Promise<{ ok: boolean; error?: string; mode: string }> {
-  const resendKey = process.env.RESEND_API_KEY;
+  const resendKey = process.env.RESEND_API_KEY?.trim();
   if (resendKey) {
     try {
       const res = await fetch("https://api.resend.com/emails", {
@@ -420,6 +425,26 @@ export async function notifyKycStatus(
       <p>You may correct your details and resubmit from Account Settings.</p>`,
     bodyText: `Hello ${user.name},\n\nYour KYC was not approved.${note ? ` Note: ${note}` : ""}\nYou may resubmit from Account Settings.`,
     meta: { userId, note },
+  });
+}
+
+export async function notifyPasswordReset(
+  to: string,
+  name: string,
+  resetUrl: string,
+) {
+  await sendTransactionalEmail({
+    to,
+    subject: `Reset your ${siteConfig.name} password`,
+    title: "Password reset",
+    kind: "password_reset",
+    bodyHtml: `<p>Hello ${name},</p>
+      <p>We received a request to reset the password for your ${siteConfig.name} account.</p>
+      <p><a href="${resetUrl}" style="display:inline-block;margin:12px 0;padding:12px 20px;background:linear-gradient(135deg,#8b5cf6,#ec4899);color:#fff;border-radius:10px;text-decoration:none;font-weight:600;">Reset password</a></p>
+      <p>This link expires in 1 hour. If you did not request a reset, you can ignore this email.</p>
+      <p style="word-break:break-all;font-size:12px;color:#6b6b80;">${resetUrl}</p>`,
+    bodyText: `Hello ${name},\n\nReset your ${siteConfig.name} password (expires in 1 hour):\n${resetUrl}\n\nIf you did not request this, ignore this email.`,
+    meta: { kind: "password_reset" },
   });
 }
 

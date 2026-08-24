@@ -9,7 +9,7 @@ import {
   getLockupMultipliers,
 } from "@/lib/services/growth";
 import { listRecentPrices } from "@/lib/services/crypto";
-import { listEmailOutbox } from "@/lib/services/email";
+import { isResendConfigured, listEmailOutbox } from "@/lib/services/email";
 import { Island, IslandBody, IslandHeader } from "@/components/ui/Island";
 import { Input, Label } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
@@ -37,6 +37,7 @@ export default async function AdminSettingsPage() {
   const outbox = isAdmin
     ? await listEmailOutbox(ctx.user.id, 15).catch(() => [])
     : [];
+  const resendConfigured = isResendConfigured();
 
   return (
     <div className="space-y-6">
@@ -128,11 +129,17 @@ export default async function AdminSettingsPage() {
                   required
                 />
                 <p className="mt-1 text-xs text-white/35">
-                  Used as the From address for deposit, investment, and
-                  withdrawal notifications. Set{" "}
-                  <code className="text-violet-300">RESEND_API_KEY</code> to
-                  deliver via Resend; otherwise emails are logged under{" "}
-                  <code className="text-violet-300">data/emails/</code>.
+                  Used as the From address for deposit, investment, withdrawal,
+                  KYC, and password-reset emails.
+                </p>
+                <p
+                  className={`mt-2 text-xs ${
+                    resendConfigured ? "text-emerald-300/80" : "text-amber-300/80"
+                  }`}
+                >
+                  {resendConfigured
+                    ? "Resend is configured. Transactional email is delivered to users."
+                    : "Resend is not configured. Set RESEND_API_KEY in .env.local (and your host env) or emails are only logged under data/emails/."}
                 </p>
               </div>
               <Button type="submit">Save emails</Button>

@@ -100,7 +100,7 @@ export function AuthForm({
           ) : null}
           {state && state.ok && mode === "forgot" ? (
             <p className="rounded-xl bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300">
-              If that email exists, a reset link was logged to the server console.
+              If that email exists, we sent a password reset link. Check your inbox.
             </p>
           ) : null}
 

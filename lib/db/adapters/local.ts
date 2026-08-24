@@ -449,6 +449,7 @@ function seedDefaultPlatformData(sqlite: DatabaseSync) {
     ["email_contact", "contact@quidmotion.com"],
     ["email_support", "support@quidmotion.com"],
     ["email_noreply", "noreply@quidmotion.com"],
+    ["email_provider", "resend"],
   ];
   for (const [key, value] of defaults) {
     sqlite.prepare(

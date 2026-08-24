@@ -9,7 +9,12 @@ import {
   getLockupMultipliers,
 } from "@/lib/services/growth";
 import { listRecentPrices } from "@/lib/services/crypto";
-import { isResendConfigured, listEmailOutbox } from "@/lib/services/email";
+import {
+  isGmailAddress,
+  isGmailSmtpConfigured,
+  isResendConfigured,
+  listEmailOutbox,
+} from "@/lib/services/email";
 import { Island, IslandBody, IslandHeader } from "@/components/ui/Island";
 import { Input, Label } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
@@ -38,6 +43,7 @@ export default async function AdminSettingsPage() {
     ? await listEmailOutbox(ctx.user.id, 15).catch(() => [])
     : [];
   const resendConfigured = isResendConfigured();
+  const gmailConfigured = isGmailSmtpConfigured();
 
   return (
     <div className="space-y-6">
@@ -97,6 +103,47 @@ export default async function AdminSettingsPage() {
           </IslandHeader>
           <IslandBody>
             <form action={updateOfficialEmailsAction} className="space-y-3">
+              <fieldset>
+                <legend className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-white/50">
+                  Mail transport
+                </legend>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <label className="flex cursor-pointer gap-3 rounded-xl border border-white/8 bg-white/5 p-3 has-[:checked]:border-violet-500/50 has-[:checked]:bg-violet-500/10">
+                    <input
+                      type="radio"
+                      name="email_provider"
+                      value="gmail_smtp"
+                      defaultChecked={emails.provider === "gmail_smtp"}
+                      className="mt-1 accent-violet-500"
+                    />
+                    <span>
+                      <span className="block text-sm font-medium text-white">
+                        Gmail SMTP
+                      </span>
+                      <span className="mt-0.5 block text-xs text-white/45">
+                        Send through Gmail until you have a verified domain.
+                      </span>
+                    </span>
+                  </label>
+                  <label className="flex cursor-pointer gap-3 rounded-xl border border-white/8 bg-white/5 p-3 has-[:checked]:border-violet-500/50 has-[:checked]:bg-violet-500/10">
+                    <input
+                      type="radio"
+                      name="email_provider"
+                      value="resend"
+                      defaultChecked={emails.provider === "resend"}
+                      className="mt-1 accent-violet-500"
+                    />
+                    <span>
+                      <span className="block text-sm font-medium text-white">
+                        Custom domain
+                      </span>
+                      <span className="mt-0.5 block text-xs text-white/45">
+                        Send through Resend from a domain verified in Resend.
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              </fieldset>
               <div>
                 <Label htmlFor="email_contact">Contact email</Label>
                 <Input
@@ -132,14 +179,40 @@ export default async function AdminSettingsPage() {
                   Used as the From address for deposit, investment, withdrawal,
                   KYC, and password-reset emails.
                 </p>
+                {emails.provider === "gmail_smtp" &&
+                  !isGmailAddress(emails.noreply) && (
+                    <p className="mt-2 text-xs text-amber-300/80">
+                      Gmail SMTP is selected. Set no-reply to this Gmail mailbox
+                      (or a Google alias). Gmail will reject or rewrite other
+                      From addresses.
+                    </p>
+                  )}
+                {emails.provider === "resend" &&
+                  isGmailAddress(emails.noreply) && (
+                    <p className="mt-2 text-xs text-amber-300/80">
+                      Custom domain is selected. Resend cannot send from
+                      @gmail.com — use an address on a domain verified in
+                      Resend.
+                    </p>
+                  )}
                 <p
                   className={`mt-2 text-xs ${
-                    resendConfigured ? "text-emerald-300/80" : "text-amber-300/80"
+                    emails.provider === "gmail_smtp"
+                      ? gmailConfigured
+                        ? "text-emerald-300/80"
+                        : "text-amber-300/80"
+                      : resendConfigured
+                        ? "text-emerald-300/80"
+                        : "text-amber-300/80"
                   }`}
                 >
-                  {resendConfigured
-                    ? "Resend is configured. Transactional email is delivered to users."
-                    : "Resend is not configured. Set RESEND_API_KEY in .env.local (and your host env) or emails are only logged under data/emails/."}
+                  {emails.provider === "gmail_smtp"
+                    ? gmailConfigured
+                      ? "Gmail SMTP is configured. Transactional email is delivered to users."
+                      : "Gmail SMTP is selected but GMAIL_APP_PASSWORD is not set in .env.local (and your host env)."
+                    : resendConfigured
+                      ? "Resend is configured. Transactional email is delivered to users."
+                      : "Custom domain is selected but RESEND_API_KEY is not set. Emails are only logged under data/emails/."}
                 </p>
               </div>
               <Button type="submit">Save emails</Button>

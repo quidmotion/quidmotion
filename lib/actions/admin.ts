@@ -179,6 +179,7 @@ export async function updateOfficialEmailsAction(
       contact: String(formData.get("email_contact") ?? ""),
       support: String(formData.get("email_support") ?? ""),
       noreply: String(formData.get("email_noreply") ?? ""),
+      provider: String(formData.get("email_provider") ?? "resend"),
     });
     revalidatePath("/admin/settings");
   } catch (e) {

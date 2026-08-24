@@ -7,7 +7,12 @@ import { getDb } from "@/lib/db";
 import { emailOutbox, users } from "@/lib/db/schema";
 import { formatUsd } from "@/lib/money";
 import { siteConfig } from "@/lib/config/site";
-import { getOfficialEmails } from "./settings";
+import nodemailer from "nodemailer";
+import {
+  getEmailProvider,
+  getOfficialEmails,
+  type EmailProvider,
+} from "./settings";
 import { assertAdmin, loadActor } from "./_authz";
 
 export type EmailKind =
@@ -26,6 +31,33 @@ export type EmailKind =
 
 export function isResendConfigured() {
   return Boolean(process.env.RESEND_API_KEY?.trim());
+}
+
+function gmailAppPassword() {
+  return process.env.GMAIL_APP_PASSWORD?.replace(/\s+/g, "").trim() ?? "";
+}
+
+export function isGmailSmtpConfigured() {
+  return Boolean(gmailAppPassword());
+}
+
+export function isGmailAddress(addr: string) {
+  const lower = addr.trim().toLowerCase();
+  return lower.endsWith("@gmail.com") || lower.endsWith("@googlemail.com");
+}
+
+export async function isSelectedMailTransportConfigured() {
+  const provider = await getEmailProvider();
+  return provider === "gmail_smtp"
+    ? isGmailSmtpConfigured()
+    : isResendConfigured();
+}
+
+function resolveGmailUser(from: string): string | null {
+  const envUser = process.env.GMAIL_USER?.trim();
+  if (envUser) return envUser;
+  if (isGmailAddress(from)) return from.trim();
+  return null;
 }
 
 function nowIso() {
@@ -72,45 +104,12 @@ function wrapHtml(title: string, body: string, supportEmail: string) {
 </html>`;
 }
 
-async function deliverViaProvider(input: {
+async function logToDisk(input: {
   to: string;
   from: string;
   subject: string;
   html: string;
-  text: string;
 }): Promise<{ ok: boolean; error?: string; mode: string }> {
-  const resendKey = process.env.RESEND_API_KEY?.trim();
-  if (resendKey) {
-    try {
-      const res = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${resendKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          from: `${siteConfig.name} <${input.from}>`,
-          to: [input.to],
-          subject: input.subject,
-          html: input.html,
-          text: input.text,
-        }),
-      });
-      if (!res.ok) {
-        const body = await res.text();
-        return { ok: false, error: `Resend ${res.status}: ${body}`, mode: "resend" };
-      }
-      return { ok: true, mode: "resend" };
-    } catch (e) {
-      return {
-        ok: false,
-        error: e instanceof Error ? e.message : "Resend failed",
-        mode: "resend",
-      };
-    }
-  }
-
-  // Local / no provider: write to disk outbox for inspection
   try {
     const dir = path.join(process.cwd(), "data", "emails");
     fs.mkdirSync(dir, { recursive: true });
@@ -132,6 +131,109 @@ async function deliverViaProvider(input: {
       mode: "logged",
     };
   }
+}
+
+async function deliverViaGmail(input: {
+  to: string;
+  from: string;
+  subject: string;
+  html: string;
+  text: string;
+}): Promise<{ ok: boolean; error?: string; mode: string }> {
+  const pass = gmailAppPassword();
+  const user = resolveGmailUser(input.from);
+  if (!pass) {
+    return {
+      ok: false,
+      error:
+        "Gmail SMTP is selected but GMAIL_APP_PASSWORD is not set in the host env.",
+      mode: "gmail_smtp",
+    };
+  }
+  if (!user) {
+    return {
+      ok: false,
+      error:
+        "Gmail SMTP is selected but GMAIL_USER is unset and the no-reply address is not a Gmail mailbox.",
+      mode: "gmail_smtp",
+    };
+  }
+  try {
+    const transporter = nodemailer.createTransport({
+      host: "smtp.gmail.com",
+      port: 465,
+      secure: true,
+      auth: { user, pass },
+    });
+    await transporter.sendMail({
+      from: `${siteConfig.name} <${input.from}>`,
+      to: input.to,
+      subject: input.subject,
+      html: input.html,
+      text: input.text,
+    });
+    return { ok: true, mode: "gmail_smtp" };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Gmail SMTP failed",
+      mode: "gmail_smtp",
+    };
+  }
+}
+
+async function deliverViaResend(input: {
+  to: string;
+  from: string;
+  subject: string;
+  html: string;
+  text: string;
+}): Promise<{ ok: boolean; error?: string; mode: string }> {
+  const resendKey = process.env.RESEND_API_KEY?.trim();
+  if (!resendKey) {
+    return logToDisk(input);
+  }
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${resendKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: `${siteConfig.name} <${input.from}>`,
+        to: [input.to],
+        subject: input.subject,
+        html: input.html,
+        text: input.text,
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      return { ok: false, error: `Resend ${res.status}: ${body}`, mode: "resend" };
+    }
+    return { ok: true, mode: "resend" };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Resend failed",
+      mode: "resend",
+    };
+  }
+}
+
+async function deliverViaProvider(input: {
+  to: string;
+  from: string;
+  subject: string;
+  html: string;
+  text: string;
+  provider: EmailProvider;
+}): Promise<{ ok: boolean; error?: string; mode: string }> {
+  if (input.provider === "gmail_smtp") {
+    return deliverViaGmail(input);
+  }
+  return deliverViaResend(input);
 }
 
 export async function enqueueEmail(input: {
@@ -200,6 +302,7 @@ export async function sendTransactionalEmail(input: {
     subject: input.subject,
     html,
     text: input.bodyText,
+    provider: emails.provider,
   });
 
   const status = result.ok

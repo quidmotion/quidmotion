@@ -6,13 +6,21 @@ import { AppError } from "@/lib/errors";
 import { assertAdmin, assertPrivilege, loadActor } from "./_authz";
 import { logEvent } from "./audit";
 
+export const EMAIL_PROVIDERS = ["gmail_smtp", "resend"] as const;
+export type EmailProvider = (typeof EMAIL_PROVIDERS)[number];
+
 export const SETTING_KEYS = {
   depositWallet: (asset: string) => `deposit_wallet_${asset.toUpperCase()}`,
   depositNetwork: (asset: string) => `deposit_network_${asset.toUpperCase()}`,
   emailContact: "email_contact",
   emailSupport: "email_support",
   emailNoreply: "email_noreply",
+  emailProvider: "email_provider",
 } as const;
+
+export function isEmailProvider(value: string): value is EmailProvider {
+  return (EMAIL_PROVIDERS as readonly string[]).includes(value);
+}
 
 export const DEPOSIT_ASSETS = ["USDT", "USDC", "BTC", "ETH"] as const;
 
@@ -98,6 +106,13 @@ export async function getDepositWallets() {
   );
 }
 
+export async function getEmailProvider(): Promise<EmailProvider> {
+  const raw = (
+    await getSettingOrDefault(SETTING_KEYS.emailProvider, "resend")
+  ).trim();
+  return raw === "gmail_smtp" ? "gmail_smtp" : "resend";
+}
+
 export async function getOfficialEmails() {
   return {
     contact: await getSettingOrDefault(
@@ -112,6 +127,7 @@ export async function getOfficialEmails() {
       SETTING_KEYS.emailNoreply,
       "noreply@quidmotion.com",
     ),
+    provider: await getEmailProvider(),
   };
 }
 
@@ -147,7 +163,12 @@ export async function updateDepositWallets(
 
 export async function updateOfficialEmails(
   actorId: string,
-  emails: { contact?: string; support?: string; noreply?: string },
+  emails: {
+    contact?: string;
+    support?: string;
+    noreply?: string;
+    provider?: string;
+  },
 ) {
   const actor = await loadActor(actorId);
   await assertPrivilege(actor, "settings.emails");
@@ -181,6 +202,13 @@ export async function updateOfficialEmails(
       SETTING_KEYS.emailNoreply,
       emails.noreply.trim(),
     );
+  }
+  if (emails.provider !== undefined) {
+    const provider = emails.provider.trim();
+    if (!isEmailProvider(provider)) {
+      throw new AppError("VALIDATION", "Invalid mail transport");
+    }
+    await writeSetting(actor.id, SETTING_KEYS.emailProvider, provider);
   }
   return getOfficialEmails();
 }

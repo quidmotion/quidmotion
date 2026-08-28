@@ -57,8 +57,7 @@ export function MarketingFooter() {
         </div>
       </div>
       <div className="border-t border-white/5 py-4 text-center text-xs text-white/35">
-        © {new Date().getFullYear()} {siteConfig.name}. Demo platform — not a
-        solicitation to invest.
+        © {new Date().getFullYear()} {siteConfig.name}. Real Estate — Power of Cyptocurrency. All rights reserved.
       </div>
     </footer>
   );

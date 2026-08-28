@@ -4,7 +4,7 @@
 
 Welcome to QuidMotion. By creating an account you agree to these terms.
 
-## 1. Demo platform
+## 1. Platform
 
 Crypto deposits use published platform wallet addresses. Withdrawals require KYC approval and admin review; on-chain transfers are performed manually by operations after approval.
 

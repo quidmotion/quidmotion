@@ -278,6 +278,11 @@ export default async function AdminSettingsPage() {
               </IslandHeader>
               <IslandBody>
                 <form action={updateApyRulesAction} className="space-y-4">
+                  <p className="text-xs text-white/40">
+                    Min/max bands are the Projected APY shown on the public
+                    Investment Plans section and the Compare all calculator
+                    (Starter → $500 tier, Growth → $2,500, Elite → $10,000).
+                  </p>
                   <div className="text-xs font-semibold uppercase text-violet-300">
                     Tier APY Rates (%)
                   </div>

@@ -250,11 +250,15 @@ function ensureSchema(sqlite: DatabaseSync) {
       to_user_id TEXT NOT NULL REFERENCES users(id),
       amount_cents INTEGER NOT NULL,
       note TEXT,
-      status TEXT NOT NULL DEFAULT 'completed',
+      status TEXT NOT NULL DEFAULT 'pending_approval',
+      reviewed_by TEXT,
+      reviewed_at TEXT,
+      reviewer_note TEXT,
       created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS internal_transfers_from_idx ON internal_transfers(from_user_id, created_at);
     CREATE INDEX IF NOT EXISTS internal_transfers_to_idx ON internal_transfers(to_user_id, created_at);
+    CREATE INDEX IF NOT EXISTS internal_transfers_status_idx ON internal_transfers(status);
 
     CREATE TABLE IF NOT EXISTS faq_entries (
       id TEXT PRIMARY KEY,
@@ -423,6 +427,9 @@ function ensureSchema(sqlite: DatabaseSync) {
     "ALTER TABLE properties ADD COLUMN featured INTEGER NOT NULL DEFAULT 1",
     "ALTER TABLE properties ADD COLUMN updated_at TEXT",
     "ALTER TABLE users ADD COLUMN lockup_days INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE internal_transfers ADD COLUMN reviewed_by TEXT",
+    "ALTER TABLE internal_transfers ADD COLUMN reviewed_at TEXT",
+    "ALTER TABLE internal_transfers ADD COLUMN reviewer_note TEXT",
   ];
   for (const sql of alters) {
     try {

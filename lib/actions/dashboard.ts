@@ -118,7 +118,7 @@ export async function withdrawAction(
   }
 }
 
-/** Instant available-balance transfer to another KYC-approved user (by email). */
+/** KYC-approved available-balance transfer — pending admin review. */
 export async function transferAction(
   amountUsd: number,
   toEmail: string,
@@ -134,9 +134,12 @@ export async function transferAction(
     revalidatePath("/dashboard");
     revalidatePath("/dashboard/transfer");
     revalidatePath("/dashboard/transactions");
+    revalidatePath("/admin/transfers");
+    revalidatePath("/admin");
     return {
       ok: true,
-      message: "Transfer completed. Funds moved to the recipient's available balance.",
+      message:
+        "Transfer submitted for admin review. Funds are reserved from your available balance.",
     };
   } catch (e) {
     return fail(e);

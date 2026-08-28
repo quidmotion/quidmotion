@@ -47,17 +47,22 @@ export default async function TransferPage() {
     }
   }
 
-  const enriched = recent.map((t: any) => {
-    const isOut = t.fromUserId === session.user.id;
-    const otherId = isOut ? t.toUserId : t.fromUserId;
-    const other = otherById.get(otherId);
-    return {
-      ...t,
-      direction: isOut ? ("out" as const) : ("in" as const),
-      otherEmail: other?.email ?? "—",
-      otherName: other?.name ?? "User",
-    };
-  });
+  const enriched = recent
+    .map((t: any) => {
+      const isOut = t.fromUserId === session.user.id;
+      const otherId = isOut ? t.toUserId : t.fromUserId;
+      const other = otherById.get(otherId);
+      return {
+        ...t,
+        direction: isOut ? ("out" as const) : ("in" as const),
+        otherEmail: other?.email ?? "—",
+        otherName: other?.name ?? "User",
+      };
+    })
+    // Recipients only see incoming transfers after admin approval.
+    .filter(
+      (t) => t.direction === "out" || t.status === "completed",
+    );
 
   return (
     <div className="mx-auto max-w-xl space-y-3 pb-4 sm:space-y-4 sm:pb-8">
@@ -65,7 +70,8 @@ export default async function TransferPage() {
         <h1 className="text-xl font-semibold sm:text-2xl">Transfer</h1>
         <p className="text-xs text-white/45 sm:text-sm">
           Send available (uninvested) balance to another KYC-approved user.
-          Transfers complete instantly.
+          Transfers require verified KYC and admin approval before the
+          recipient is credited.
         </p>
       </div>
 
@@ -116,8 +122,24 @@ export default async function TransferPage() {
                   {t.direction === "out" ? "−" : "+"}
                   {formatUsd(t.amountCents)}
                 </span>
-                <Badge tone={t.direction === "out" ? "warning" : "success"}>
-                  {t.direction === "out" ? "sent" : "received"}
+                <Badge
+                  tone={
+                    t.status === "completed"
+                      ? t.direction === "out"
+                        ? "warning"
+                        : "success"
+                      : t.status === "rejected" || t.status === "failed"
+                        ? "danger"
+                        : "neutral"
+                  }
+                >
+                  {t.status === "pending_approval"
+                    ? "pending review"
+                    : t.status === "completed"
+                      ? t.direction === "out"
+                        ? "sent"
+                        : "received"
+                      : t.status}
                 </Badge>
               </div>
               <div className="mt-1 text-xs text-white/45">

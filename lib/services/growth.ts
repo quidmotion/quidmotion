@@ -449,6 +449,59 @@ export async function recalculateAllInvestmentsApy() {
   }
 }
 
+/**
+ * Projected marketing APY for a plan = the admin-set min/max band of the
+ * size tier that plan's minimum investment qualifies for.
+ * Starter ($500) → $500 tier, Growth ($2,500) → $2,500 tier, Elite ($10k) → $10k tier.
+ * Lock-up multipliers still apply to actual yield accrual, not this display.
+ */
+export function projectedPlanApy(
+  plan: { lockupDays: number; minInvestmentCents: number },
+  rates: {
+    minInvestedCents: number;
+    apyMinBps: number;
+    apyMaxBps: number;
+  }[],
+  _multipliers?: Record<number, number>,
+): { apyMinBps: number; apyMaxBps: number } {
+  const minInvest = asCents(plan.minInvestmentCents);
+  const sorted = [...rates].sort(
+    (a, b) => asCents(b.minInvestedCents) - asCents(a.minInvestedCents),
+  );
+  const tier =
+    sorted.find((t) => minInvest >= asCents(t.minInvestedCents)) ??
+    sorted[sorted.length - 1];
+  if (!tier) return { apyMinBps: 0, apyMaxBps: 0 };
+  return {
+    apyMinBps: asCents(tier.apyMinBps),
+    apyMaxBps: asCents(tier.apyMaxBps),
+  };
+}
+
+async function syncInvestmentPlanApyFromRules(
+  multipliers: Record<number, number>,
+) {
+  const db = getDb();
+  // Read rates from DB (not the request-cached list) so a just-saved
+  // admin update is what gets written onto investment_plans.
+  const [rates, plans] = await Promise.all([
+    db.select().from(defaultPortfolioRates) as Promise<any[]>,
+    db.select().from(investmentPlans) as Promise<any[]>,
+  ]);
+  const now = nowIso();
+  for (const plan of plans) {
+    const apy = projectedPlanApy(plan, rates, multipliers);
+    await db
+      .update(investmentPlans)
+      .set({
+        apyMinBps: apy.apyMinBps,
+        apyMaxBps: apy.apyMaxBps,
+        updatedAt: now,
+      })
+      .where(eq(investmentPlans.id, plan.id));
+  }
+}
+
 export async function updateApyRules(
   actorId: string,
   tiers: {
@@ -474,11 +527,15 @@ export async function updateApyRules(
       .where(eq(defaultPortfolioRates.tier, t.tier));
   }
 
+  const multipliers: Record<number, number> = {};
   for (const l of lockups) {
     const key = `lockup_mult_${l.days}`;
     const value = String(l.multiplierPct / 100);
     await writeSetting(actor.id, key, value);
+    const n = l.multiplierPct / 100;
+    multipliers[l.days] = Number.isFinite(n) && n > 0 ? n : 1;
   }
 
+  await syncInvestmentPlanApyFromRules(multipliers);
   await recalculateAllInvestmentsApy();
 }

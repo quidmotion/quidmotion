@@ -14,6 +14,7 @@ import * as properties from "@/lib/services/properties";
 import * as cryptoSvc from "@/lib/services/crypto";
 import * as growth from "@/lib/services/growth";
 import * as supportStaff from "@/lib/services/support-staff";
+import * as transfers from "@/lib/services/transfers";
 import { actorHasPrivilege, loadActor } from "@/lib/services/_authz";
 
 export type ActionResult =
@@ -337,8 +338,11 @@ export async function updateApyRulesAction(
     ];
     await growth.updateApyRules(staff.id, tiers, lockups);
     revalidatePath("/admin/settings");
+    revalidatePath("/admin/plans");
     revalidatePath("/dashboard/investments");
     revalidatePath("/dashboard");
+    revalidatePath("/");
+    revalidatePath("/plans");
   } catch (e) {
     console.error("[updateApyRulesAction]", fail(e));
   }
@@ -401,6 +405,34 @@ export async function setSupportPasswordAction(
     revalidatePath("/admin/support-staff");
   } catch (e) {
     console.error("[setSupportPasswordAction]", fail(e));
+  }
+}
+
+export async function reviewTransferAction(
+  prevOrForm: ActionResult | null | FormData,
+  maybeForm?: FormData,
+): Promise<void> {
+  try {
+    const formData = asFormData(prevOrForm, maybeForm);
+    const staff = await requireStaffSession();
+    const id = String(formData.get("id"));
+    const decision = String(formData.get("decision"));
+    if (decision === "approve") {
+      await transfers.approveTransfer(staff.id, id);
+    } else if (decision === "reject") {
+      await transfers.rejectTransfer(
+        staff.id,
+        id,
+        String(formData.get("note") ?? "Rejected by admin") || undefined,
+      );
+    }
+    revalidatePath("/admin/transfers");
+    revalidatePath("/admin");
+    revalidatePath("/dashboard");
+    revalidatePath("/dashboard/transfer");
+    revalidatePath("/dashboard/transactions");
+  } catch (e) {
+    console.error("[reviewTransferAction]", fail(e));
   }
 }
 

@@ -70,7 +70,8 @@ export function TransferForm({
           autoComplete="email"
         />
         <p className="mt-1 text-xs text-white/35">
-          Recipient must be a KYC-approved QuidMotion account.
+          Recipient must be a KYC-approved QuidMotion account. Transfers are
+          held for admin review before the recipient is credited.
         </p>
       </div>
       <div>
@@ -117,12 +118,12 @@ export function TransferForm({
       {error && <p className="text-sm text-red-400">{error}</p>}
       {ok && (
         <p className="text-sm text-emerald-400">
-          Transfer completed. Funds are in the recipient&apos;s available
-          balance.
+          Transfer submitted for admin review. Funds are reserved from your
+          available balance until it is approved or declined.
         </p>
       )}
       <Button type="submit" disabled={pending || availableUsd < 1} className="w-full">
-        {pending ? "Sending…" : "Send transfer"}
+        {pending ? "Submitting…" : "Submit transfer"}
       </Button>
     </form>
   );

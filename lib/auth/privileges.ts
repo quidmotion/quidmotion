@@ -11,6 +11,8 @@ export const PRIVILEGE_KEYS = [
   "deposits.review",
   "withdrawals.view",
   "withdrawals.review",
+  "transfers.view",
+  "transfers.review",
   "properties.edit",
   "properties.create",
   "settings.wallets",
@@ -57,6 +59,16 @@ export const PRIVILEGE_LABELS: Record<
     description: "Approve, complete, or reject payouts",
     group: "Withdrawals",
   },
+  "transfers.view": {
+    label: "View transfers",
+    description: "See pending internal balance transfers",
+    group: "Transfers",
+  },
+  "transfers.review": {
+    label: "Approve / decline transfers",
+    description: "Approve or reject user-to-user balance transfers",
+    group: "Transfers",
+  },
   "properties.edit": {
     label: "Edit properties",
     description: "Update existing featured properties",
@@ -96,6 +108,7 @@ export const PRIVILEGE_IMPLIES: Partial<
   "kyc.review": ["kyc.view"],
   "deposits.review": ["deposits.view"],
   "withdrawals.review": ["withdrawals.view"],
+  "transfers.review": ["transfers.view"],
 };
 
 export function emptyPrivileges(): PrivilegeMap {
@@ -192,6 +205,7 @@ export const ADMIN_NAV_PRIVILEGE: Record<
   "/admin/deposits": "deposits.view",
   "/admin/plans": "admin",
   "/admin/payouts": "withdrawals.view",
+  "/admin/transfers": "transfers.view",
   "/admin/properties": ["properties.edit", "properties.create"],
   "/admin/settings": ["settings.wallets", "settings.emails", "settings.apy"],
   "/admin/content": "admin",

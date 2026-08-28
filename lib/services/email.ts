@@ -26,6 +26,8 @@ export type EmailKind =
   | "kyc_rejected"
   | "transfer_sent"
   | "transfer_received"
+  | "transfer_pending"
+  | "transfer_rejected"
   | "password_reset"
   | "generic";
 
@@ -442,6 +444,54 @@ export async function notifyWithdrawalCompleted(
   });
 }
 
+export async function notifyTransferPending(
+  userId: string,
+  amountCents: number,
+  recipientEmail: string,
+  recipientName: string,
+) {
+  const user = await userEmail(userId);
+  if (!user) return;
+  const amount = formatUsd(amountCents);
+  await sendTransactionalEmail({
+    to: user.email,
+    subject: `Transfer submitted — ${amount}`,
+    title: "Transfer pending review",
+    kind: "transfer_pending",
+    bodyHtml: `<p>Hello ${user.name},</p>
+      <p>Your transfer of <strong style="color:#f4f4f7;">${amount}</strong> to <strong style="color:#f4f4f7;">${recipientName}</strong> (${recipientEmail}) has been submitted for admin review.</p>
+      <p>The amount has been reserved from your available balance. You will be notified when it is approved or declined.</p>`,
+    bodyText: `Hello ${user.name},\n\nYour transfer of ${amount} to ${recipientName} (${recipientEmail}) is pending admin review. The amount has been reserved from your available balance.`,
+    meta: { userId, amountCents, recipientEmail },
+  });
+}
+
+export async function notifyTransferRejected(
+  userId: string,
+  amountCents: number,
+  recipientEmail: string,
+  note?: string,
+) {
+  const user = await userEmail(userId);
+  if (!user) return;
+  const amount = formatUsd(amountCents);
+  const reason = note
+    ? `<p>Reason: ${note}</p>`
+    : "";
+  await sendTransactionalEmail({
+    to: user.email,
+    subject: `Transfer declined — ${amount}`,
+    title: "Transfer declined",
+    kind: "transfer_rejected",
+    bodyHtml: `<p>Hello ${user.name},</p>
+      <p>Your transfer of <strong style="color:#f4f4f7;">${amount}</strong> to ${recipientEmail} was declined.</p>
+      ${reason}
+      <p>The reserved funds have been restored to your available balance.</p>`,
+    bodyText: `Hello ${user.name},\n\nYour transfer of ${amount} to ${recipientEmail} was declined.${note ? `\nReason: ${note}` : ""}\nThe reserved funds have been restored to your available balance.`,
+    meta: { userId, amountCents, recipientEmail, note },
+  });
+}
+
 export async function notifyTransferSent(
   userId: string,
   amountCents: number,
@@ -457,9 +507,9 @@ export async function notifyTransferSent(
     title: "Transfer sent",
     kind: "transfer_sent",
     bodyHtml: `<p>Hello ${user.name},</p>
-      <p>You sent <strong style="color:#f4f4f7;">${amount}</strong> from your available balance to <strong style="color:#f4f4f7;">${recipientName}</strong> (${recipientEmail}).</p>
-      <p>The transfer completed instantly. You can review it under Transactions.</p>`,
-    bodyText: `Hello ${user.name},\n\nYou sent ${amount} to ${recipientName} (${recipientEmail}). The transfer completed instantly.`,
+      <p>Your transfer of <strong style="color:#f4f4f7;">${amount}</strong> to <strong style="color:#f4f4f7;">${recipientName}</strong> (${recipientEmail}) has been approved and completed.</p>
+      <p>You can review it under Transactions.</p>`,
+    bodyText: `Hello ${user.name},\n\nYour transfer of ${amount} to ${recipientName} (${recipientEmail}) has been approved and completed.`,
     meta: { userId, amountCents, recipientEmail },
   });
 }

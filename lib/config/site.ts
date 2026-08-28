@@ -35,6 +35,7 @@ export const siteConfig = {
     { label: "Deposits", href: "/admin/deposits" },
     { label: "Plans", href: "/admin/plans" },
     { label: "Withdrawals", href: "/admin/payouts" },
+    { label: "Transfers", href: "/admin/transfers" },
     { label: "Properties", href: "/admin/properties" },
     { label: "Settings", href: "/admin/settings" },
     { label: "Support staff", href: "/admin/support-staff" },

@@ -57,6 +57,12 @@ export default async function AdminOverviewPage() {
       href: "/admin/payouts",
       adminOnly: false,
     },
+    {
+      label: "Pending transfers",
+      value: String(o.pendingTransfers ?? 0),
+      href: "/admin/transfers",
+      adminOnly: false,
+    },
   ];
 
   const cards = allCards.filter((c) => {

@@ -254,8 +254,9 @@ export const kycSubmissions = sqliteTable(
 );
 
 /**
- * Instant internal balance transfers between KYC-approved users.
- * Ledger legs use transfer_out / transfer_in with refType internal_transfer.
+ * Internal balance transfers between KYC-approved users.
+ * Lifecycle: pending_approval → completed | rejected | failed
+ * Sender is debited on request; recipient is credited only after admin approval.
  */
 export const internalTransfers = sqliteTable(
   "internal_transfers",
@@ -270,15 +271,19 @@ export const internalTransfers = sqliteTable(
     amountCents: integer("amount_cents").notNull(),
     note: text("note"),
     status: text("status", {
-      enum: ["completed", "failed"],
+      enum: ["pending_approval", "completed", "rejected", "failed"],
     })
       .notNull()
-      .default("completed"),
+      .default("pending_approval"),
+    reviewedBy: text("reviewed_by"),
+    reviewedAt: text("reviewed_at"),
+    reviewerNote: text("reviewer_note"),
     createdAt: text("created_at").notNull(),
   },
   (t) => [
     index("internal_transfers_from_idx").on(t.fromUserId, t.createdAt),
     index("internal_transfers_to_idx").on(t.toUserId, t.createdAt),
+    index("internal_transfers_status_idx").on(t.status),
   ],
 );
 

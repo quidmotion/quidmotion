@@ -5,6 +5,7 @@ import { eq, desc, and, gte } from "drizzle-orm";
 import type { InferSelectModel } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import {
+  defaultPortfolioRates,
   investmentPlans,
   userInvestments,
   portfolioValueSnapshots,
@@ -25,6 +26,7 @@ import {
   accrueUserGrowth,
   describeGrowthForUser,
   lockupMultiplier,
+  projectedPlanApy,
   resolveDefaultApyBps,
   totalActiveInvestedCents,
 } from "./growth";
@@ -32,16 +34,29 @@ import {
 export type TimeRange = "1D" | "7D" | "6M" | "YTD" | "1Y" | "All";
 export type InvestmentPlan = InferSelectModel<typeof investmentPlans>;
 
+async function withLivePlanApy(
+  plans: InvestmentPlan[],
+): Promise<InvestmentPlan[]> {
+  if (plans.length === 0) return plans;
+  const db = getDb();
+  const rateRows = (await db.select().from(defaultPortfolioRates)) as any[];
+  return plans.map((p) => {
+    const apy = projectedPlanApy(p, rateRows);
+    return { ...p, apyMinBps: apy.apyMinBps, apyMaxBps: apy.apyMaxBps };
+  });
+}
+
 const listPlansCached = cache(
   async (mode: "active" | "all"): Promise<InvestmentPlan[]> => {
     const db = getDb();
-    if (mode === "active") {
-      return (await db
-        .select()
-        .from(investmentPlans)
-        .where(eq(investmentPlans.status, "active"))) as InvestmentPlan[];
-    }
-    return (await db.select().from(investmentPlans)) as InvestmentPlan[];
+    const rows =
+      mode === "active"
+        ? ((await db
+            .select()
+            .from(investmentPlans)
+            .where(eq(investmentPlans.status, "active"))) as InvestmentPlan[])
+        : ((await db.select().from(investmentPlans)) as InvestmentPlan[]);
+    return withLivePlanApy(rows);
   },
 );
 
@@ -58,13 +73,16 @@ export async function getPlan(
     .select()
     .from(investmentPlans)
     .where(eq(investmentPlans.id, planIdOrSlug));
-  if (byId[0]) return byId[0] as InvestmentPlan;
-
-  const bySlug = await db
-    .select()
-    .from(investmentPlans)
-    .where(eq(investmentPlans.slug, planIdOrSlug));
-  return bySlug[0] as InvestmentPlan | undefined;
+  const found = (byId[0] ??
+    (
+      await db
+        .select()
+        .from(investmentPlans)
+        .where(eq(investmentPlans.slug, planIdOrSlug))
+    )[0]) as InvestmentPlan | undefined;
+  if (!found) return undefined;
+  const [live] = await withLivePlanApy([found]);
+  return live;
 }
 
 /**

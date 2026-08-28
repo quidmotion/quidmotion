@@ -1,4 +1,5 @@
 export const dynamic = "force-dynamic";
+import Link from "next/link";
 import { getAuth } from "@/lib/auth";
 import { listUsers, setUserStatus } from "@/lib/services/users";
 import { Island, IslandBody, IslandHeader } from "@/components/ui/Island";
@@ -14,6 +15,7 @@ async function toggleStatus(formData: FormData) {
   const status = String(formData.get("status")) as "active" | "suspended";
   await setUserStatus(session.user.id, userId, status);
   revalidatePath("/admin/users");
+  revalidatePath(`/admin/users/${userId}`);
 }
 
 export default async function AdminUsersPage() {
@@ -37,7 +39,12 @@ export default async function AdminUsersPage() {
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="truncate font-medium">{u.name}</div>
+                    <Link
+                      href={`/admin/users/${u.id}`}
+                      className="truncate font-medium text-white hover:text-violet-200"
+                    >
+                      {u.name}
+                    </Link>
                     <div className="truncate text-xs text-white/45">{u.email}</div>
                   </div>
                   <Badge tone={u.status === "active" ? "success" : "danger"}>
@@ -49,22 +56,30 @@ export default async function AdminUsersPage() {
                   <span>·</span>
                   <Badge tone="neutral">{u.kycStatus}</Badge>
                 </div>
-                {u.role !== "admin" && (
-                  <form action={toggleStatus} className="mt-3">
-                    <input type="hidden" name="userId" value={u.id} />
-                    <input
-                      type="hidden"
-                      name="status"
-                      value={u.status === "active" ? "suspended" : "active"}
-                    />
-                    <button
-                      type="submit"
-                      className="rounded-full bg-violet-500/15 px-3 py-1.5 text-xs text-violet-200 hover:bg-violet-500/25"
-                    >
-                      {u.status === "active" ? "Suspend" : "Activate"}
-                    </button>
-                  </form>
-                )}
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <Link
+                    href={`/admin/users/${u.id}`}
+                    className="rounded-full bg-white/10 px-3 py-1.5 text-xs text-white/80 hover:bg-white/15"
+                  >
+                    View account
+                  </Link>
+                  {u.role !== "admin" && (
+                    <form action={toggleStatus}>
+                      <input type="hidden" name="userId" value={u.id} />
+                      <input
+                        type="hidden"
+                        name="status"
+                        value={u.status === "active" ? "suspended" : "active"}
+                      />
+                      <button
+                        type="submit"
+                        className="rounded-full bg-violet-500/15 px-3 py-1.5 text-xs text-violet-200 hover:bg-violet-500/25"
+                      >
+                        {u.status === "active" ? "Suspend" : "Activate"}
+                      </button>
+                    </form>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -85,7 +100,14 @@ export default async function AdminUsersPage() {
               <tbody>
                 {users.map((u: any) => (
                   <tr key={u.id} className="border-t border-white/5">
-                    <td className="py-2 pr-3">{u.name}</td>
+                    <td className="py-2 pr-3">
+                      <Link
+                        href={`/admin/users/${u.id}`}
+                        className="hover:text-violet-200 hover:underline"
+                      >
+                        {u.name}
+                      </Link>
+                    </td>
                     <td className="py-2 pr-3 text-white/50">{u.email}</td>
                     <td className="py-2 pr-3 capitalize">{u.role}</td>
                     <td className="py-2 pr-3">
@@ -99,24 +121,32 @@ export default async function AdminUsersPage() {
                       </Badge>
                     </td>
                     <td className="py-2">
-                      {u.role !== "admin" && (
-                        <form action={toggleStatus}>
-                          <input type="hidden" name="userId" value={u.id} />
-                          <input
-                            type="hidden"
-                            name="status"
-                            value={
-                              u.status === "active" ? "suspended" : "active"
-                            }
-                          />
-                          <button
-                            type="submit"
-                            className="text-xs text-violet-300 hover:underline"
-                          >
-                            {u.status === "active" ? "Suspend" : "Activate"}
-                          </button>
-                        </form>
-                      )}
+                      <div className="flex flex-wrap items-center gap-3">
+                        <Link
+                          href={`/admin/users/${u.id}`}
+                          className="text-xs text-violet-300 hover:underline"
+                        >
+                          View
+                        </Link>
+                        {u.role !== "admin" && (
+                          <form action={toggleStatus}>
+                            <input type="hidden" name="userId" value={u.id} />
+                            <input
+                              type="hidden"
+                              name="status"
+                              value={
+                                u.status === "active" ? "suspended" : "active"
+                              }
+                            />
+                            <button
+                              type="submit"
+                              className="text-xs text-violet-300 hover:underline"
+                            >
+                              {u.status === "active" ? "Suspend" : "Activate"}
+                            </button>
+                          </form>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

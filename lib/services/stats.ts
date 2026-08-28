@@ -9,6 +9,7 @@ import {
   kycSubmissions,
   payouts,
   transactions,
+  internalTransfers,
 } from "@/lib/db/schema";
 import { asCents, sumCents } from "@/lib/money";
 
@@ -74,6 +75,11 @@ export async function getAdminOverview() {
       ),
     )) as any[];
 
+  const pendingTransfers = (await db
+    .select()
+    .from(internalTransfers)
+    .where(eq(internalTransfers.status, "pending_approval"))) as any[];
+
   return {
     totalUsers: allUsers.length,
     totalAumCents: inv
@@ -82,5 +88,6 @@ export async function getAdminOverview() {
     pendingKyc: kyc.length,
     pendingWithdrawals: pendingPays.length + processingPays.length,
     pendingDeposits: pendingDeposits.length,
+    pendingTransfers: pendingTransfers.length,
   };
 }

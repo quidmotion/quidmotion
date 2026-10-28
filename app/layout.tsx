@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { siteConfig } from "@/lib/config/site";
 import { SupportChatWidget } from "@/components/support/SupportChatWidget";
+import { ActionFeedback } from "@/components/feedback/ActionFeedback";
 
 export const metadata: Metadata = {
   title: {
@@ -20,6 +21,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="qm-canvas min-h-screen antialiased">
         {children}
+        <ActionFeedback />
         <SupportChatWidget />
       </body>
     </html>

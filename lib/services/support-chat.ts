@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { and, asc, desc, eq, isNull, ne, or } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull, ne, or } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import {
   supportConversations,
@@ -331,7 +331,7 @@ export async function markStaffMessagesRead(
   }
 }
 
-/** Staff inbox list. */
+/** Staff inbox list. One conversation query, one message query, one user query. */
 export async function listConversationsForStaff(
   actorId: string,
   opts: { status?: string } = {},
@@ -340,57 +340,72 @@ export async function listConversationsForStaff(
   await assertPrivilege(actor, "chat.access");
   const db = getDb();
 
-  let rows = (await db
-    .select()
-    .from(supportConversations)
-    .orderBy(desc(supportConversations.lastMessageAt))) as any[];
+  const rows = (
+    opts.status && opts.status !== "all"
+      ? await db
+          .select()
+          .from(supportConversations)
+          .where(eq(supportConversations.status, opts.status as "open"))
+          .orderBy(desc(supportConversations.lastMessageAt))
+      : await db
+          .select()
+          .from(supportConversations)
+          .orderBy(desc(supportConversations.lastMessageAt))
+  ) as any[];
 
-  if (opts.status && opts.status !== "all") {
-    rows = rows.filter((c: any) => c.status === opts.status);
-  }
+  const ids = rows.map((c) => c.id as string);
+  const userIds = [
+    ...new Set(rows.map((c) => c.userId).filter(Boolean)),
+  ] as string[];
 
-  return Promise.all(
-    rows.map(async (c: any) => {
-      let userName: string | null = c.guestName;
-      let userEmail: string | null = c.guestEmail;
-      if (c.userId) {
-        const u = (await db
+  const [msgRows, userRows] = await Promise.all([
+    ids.length
+      ? ((await db
+          .select()
+          .from(supportMessages)
+          .where(inArray(supportMessages.conversationId, ids))
+          .orderBy(desc(supportMessages.createdAt))) as any[])
+      : [],
+    userIds.length
+      ? ((await db
           .select()
           .from(users)
-          .where(eq(users.id, c.userId))) as any[];
-        if (u[0]) {
-          userName = u[0].name;
-          userEmail = u[0].email;
-        }
-      }
-      const msgs = (await db
-        .select()
-        .from(supportMessages)
-        .where(eq(supportMessages.conversationId, c.id))
-        .orderBy(desc(supportMessages.createdAt))) as any[];
-      const last = msgs[0];
-      const unread = msgs.filter(
-        (m: any) =>
-          !m.readAt &&
-          (m.senderRole === "user" || m.senderRole === "guest"),
-      ).length;
-      return {
-        id: c.id,
-        userId: c.userId,
-        guestName: c.guestName,
-        guestEmail: c.guestEmail,
-        status: c.status,
-        assignedTo: c.assignedTo,
-        lastMessageAt: c.lastMessageAt,
-        createdAt: c.createdAt,
-        updatedAt: c.updatedAt,
-        userName,
-        userEmail,
-        unreadCount: unread,
-        lastPreview: last?.body?.slice(0, 120) ?? null,
-      } satisfies ChatConversation;
-    }),
-  );
+          .where(inArray(users.id, userIds))) as any[])
+      : [],
+  ]);
+
+  const userById = new Map(userRows.map((u: any) => [u.id, u]));
+  const grouped = new Map<string, any[]>();
+  for (const m of msgRows) {
+    const list = grouped.get(m.conversationId);
+    if (list) list.push(m);
+    else grouped.set(m.conversationId, [m]);
+  }
+
+  return rows.map((c: any) => {
+    const msgs = grouped.get(c.id) ?? [];
+    const last = msgs[0];
+    const unread = msgs.filter(
+      (m: any) =>
+        !m.readAt && (m.senderRole === "user" || m.senderRole === "guest"),
+    ).length;
+    const u = c.userId ? userById.get(c.userId) : null;
+    return {
+      id: c.id,
+      userId: c.userId,
+      guestName: c.guestName,
+      guestEmail: c.guestEmail,
+      status: c.status,
+      assignedTo: c.assignedTo,
+      lastMessageAt: c.lastMessageAt,
+      createdAt: c.createdAt,
+      updatedAt: c.updatedAt,
+      userName: u?.name ?? c.guestName,
+      userEmail: u?.email ?? c.guestEmail,
+      unreadCount: unread,
+      lastPreview: last?.body?.slice(0, 120) ?? null,
+    } satisfies ChatConversation;
+  });
 }
 
 export async function getConversationForStaff(
@@ -576,13 +591,8 @@ export async function countUnreadForGuest(guestToken: string): Promise<number> {
 }
 
 export async function countOpenUnreadForStaff(actorId: string): Promise<number> {
-  const actor = await loadActor(actorId);
-  const map = await loadPrivileges(actor);
-  if (!hasPrivilegeInMap(map, "chat.access") && !isAdmin(actor.role as Role)) {
-    return 0;
-  }
-  const list = await listConversationsForStaff(actorId, { status: "all" });
-  return list.reduce((s, c) => s + (c.unreadCount ?? 0), 0);
+  const snap = await staffAlertSnapshot(actorId);
+  return snap.access ? snap.unread : 0;
 }
 
 /** Widget poll payload for authenticated non-staff users. */
@@ -627,5 +637,293 @@ export async function pollGuestChat(guestToken: string) {
     conversation: conv,
     messages,
     unread: await countUnreadForGuest(guestToken),
+  };
+}
+
+async function listMessagesSince(
+  conversationId: string,
+  since?: string | null,
+): Promise<ChatMessage[]> {
+  const db = getDb();
+  const where = since
+    ? and(
+        eq(supportMessages.conversationId, conversationId),
+        gt(supportMessages.createdAt, since),
+      )
+    : eq(supportMessages.conversationId, conversationId);
+  const rows = (await db
+    .select()
+    .from(supportMessages)
+    .where(where)
+    .orderBy(asc(supportMessages.createdAt))) as any[];
+  return rows.map(mapMessage);
+}
+
+async function countVisitorUnread(conversationId: string): Promise<number> {
+  const db = getDb();
+  const msgs = (await db
+    .select()
+    .from(supportMessages)
+    .where(
+      and(
+        eq(supportMessages.conversationId, conversationId),
+        isNull(supportMessages.readAt),
+        or(
+          eq(supportMessages.senderRole, "support"),
+          eq(supportMessages.senderRole, "admin"),
+        ),
+      ),
+    )) as any[];
+  return msgs.length;
+}
+
+async function latestConversationForUser(userId: string) {
+  const db = getDb();
+  const rows = (await db
+    .select()
+    .from(supportConversations)
+    .where(eq(supportConversations.userId, userId))
+    .orderBy(desc(supportConversations.lastMessageAt))) as any[];
+  return rows.find((r) => r.status !== "closed") ?? rows[0] ?? null;
+}
+
+/** One cheap read for the visitor widget. Marks staff replies read only when asked. */
+export async function pollVisitorThread(input: {
+  userId: string | null;
+  guestToken: string | null;
+  since: string | null;
+  markRead: boolean;
+}): Promise<{
+  kind: "user" | "guest" | "staff" | "anon";
+  conversation: { id: string; status: string } | null;
+  messages: ChatMessage[];
+  unread: number;
+}> {
+  if (input.userId) {
+    const actor = await loadActor(input.userId);
+    if (isStaff(actor.role as Role)) {
+      return { kind: "staff", conversation: null, messages: [], unread: 0 };
+    }
+    const conv = await latestConversationForUser(actor.id);
+    if (!conv) {
+      return { kind: "user", conversation: null, messages: [], unread: 0 };
+    }
+    if (input.markRead && conv.status !== "closed") {
+      await markStaffMessagesRead(conv.id, "user");
+    }
+    const messages = await listMessagesSince(conv.id, input.since);
+    const unread =
+      input.markRead || conv.status === "closed"
+        ? 0
+        : await countVisitorUnread(conv.id);
+    return {
+      kind: "user",
+      conversation: { id: conv.id, status: conv.status },
+      messages,
+      unread,
+    };
+  }
+
+  if (input.guestToken) {
+    const conv = await resumeGuestConversation(input.guestToken);
+    if (!conv) {
+      return { kind: "guest", conversation: null, messages: [], unread: 0 };
+    }
+    if (input.markRead && conv.status !== "closed") {
+      await markStaffMessagesRead(conv.id, "guest");
+    }
+    const messages = await listMessagesSince(conv.id, input.since);
+    const unread =
+      input.markRead || conv.status === "closed"
+        ? 0
+        : await countVisitorUnread(conv.id);
+    return {
+      kind: "guest",
+      conversation: { id: conv.id, status: conv.status },
+      messages,
+      unread,
+    };
+  }
+
+  return { kind: "anon", conversation: null, messages: [], unread: 0 };
+}
+
+/** Visitor send. Reuses a closed guest's saved name and email for the next thread. */
+export async function postVisitorMessage(input: {
+  userId: string | null;
+  guestToken: string | null;
+  body: string;
+  guestName?: string;
+  guestEmail?: string;
+}): Promise<{
+  conversationId: string;
+  messages: ChatMessage[];
+  guestToken?: string;
+}> {
+  if (input.userId) {
+    const actor = await loadActor(input.userId);
+    if (isStaff(actor.role as Role)) {
+      throw new AppError(
+        "FORBIDDEN",
+        "Staff should use the support inbox",
+        403,
+      );
+    }
+    const conv = await getOrCreateUserConversation(actor.id);
+    await sendUserMessage(actor.id, conv.id, input.body);
+    await markStaffMessagesRead(conv.id, "user");
+    return {
+      conversationId: conv.id,
+      messages: await listMessagesInternal(conv.id),
+    };
+  }
+
+  const token = input.guestToken;
+  if (token) {
+    const existing = await resumeGuestConversation(token);
+    if (existing && existing.status !== "closed") {
+      await sendGuestMessage(token, input.body);
+      await markStaffMessagesRead(existing.id, "guest");
+      return {
+        conversationId: existing.id,
+        messages: await listMessagesForGuest(token),
+      };
+    }
+    if (existing?.guestName && existing?.guestEmail) {
+      const started = await startGuestConversation({
+        name: existing.guestName,
+        email: existing.guestEmail,
+        body: input.body,
+      });
+      return {
+        conversationId: started.conversationId,
+        guestToken: started.guestToken,
+        messages: await listMessagesForGuest(started.guestToken),
+      };
+    }
+  }
+
+  if (!input.guestName?.trim() || !input.guestEmail?.trim()) {
+    throw new AppError(
+      "VALIDATION",
+      "Please provide your name and email to start a chat",
+    );
+  }
+  const started = await startGuestConversation({
+    name: input.guestName,
+    email: input.guestEmail,
+    body: input.body,
+  });
+  return {
+    conversationId: started.conversationId,
+    guestToken: started.guestToken,
+    messages: await listMessagesForGuest(started.guestToken),
+  };
+}
+
+export async function getStaffThread(
+  actorId: string,
+  conversationId: string,
+  opts: { since?: string | null; markRead?: boolean } = {},
+) {
+  const actor = await loadActor(actorId);
+  await assertPrivilege(actor, "chat.access");
+  const conv = await getConversationRow(conversationId);
+  if (!conv) throw new AppError("NOT_FOUND", "Conversation not found", 404);
+
+  const db = getDb();
+  let userName = conv.guestName as string | null;
+  let userEmail = conv.guestEmail as string | null;
+  if (conv.userId) {
+    const u = (await db
+      .select()
+      .from(users)
+      .where(eq(users.id, conv.userId))) as any[];
+    if (u[0]) {
+      userName = u[0].name;
+      userEmail = u[0].email;
+    }
+  }
+
+  if (opts.markRead) await markStaffMessagesRead(conversationId, "staff");
+  const messages = await listMessagesSince(conversationId, opts.since);
+  const { guestTokenHash: _guestTokenHash, ...safe } = conv;
+
+  return {
+    conversation: { ...safe, userName, userEmail },
+    messages,
+  };
+}
+
+export type StaffAlertItem = {
+  id: string;
+  conversationId: string;
+  body: string;
+  createdAt: string;
+  fromName: string;
+};
+
+/** Unread visitor messages for agents who are away from the inbox. */
+export async function staffAlertSnapshot(actorId: string): Promise<{
+  access: boolean;
+  unread: number;
+  items: StaffAlertItem[];
+}> {
+  const actor = await loadActor(actorId);
+  const map = await loadPrivileges(actor);
+  if (!hasPrivilegeInMap(map, "chat.access") && !isAdmin(actor.role as Role)) {
+    return { access: false, unread: 0, items: [] };
+  }
+  const db = getDb();
+  const msgs = (await db
+    .select()
+    .from(supportMessages)
+    .where(
+      and(
+        isNull(supportMessages.readAt),
+        or(
+          eq(supportMessages.senderRole, "user"),
+          eq(supportMessages.senderRole, "guest"),
+        ),
+      ),
+    )
+    .orderBy(desc(supportMessages.createdAt))) as any[];
+
+  const top = msgs.slice(0, 15);
+  const convIds = [...new Set(top.map((m) => m.conversationId as string))];
+  const convs = convIds.length
+    ? ((await db
+        .select()
+        .from(supportConversations)
+        .where(inArray(supportConversations.id, convIds))) as any[])
+    : [];
+  const convById = new Map(convs.map((c) => [c.id, c]));
+  const userIds = [
+    ...new Set(convs.map((c) => c.userId).filter(Boolean)),
+  ] as string[];
+  const userRows = userIds.length
+    ? ((await db
+        .select()
+        .from(users)
+        .where(inArray(users.id, userIds))) as any[])
+    : [];
+  const userById = new Map(userRows.map((u: any) => [u.id, u]));
+
+  return {
+    access: true,
+    unread: msgs.length,
+    items: top.map((m) => {
+      const conv = convById.get(m.conversationId);
+      const fromName = conv?.userId
+        ? (userById.get(conv.userId)?.name ?? "User")
+        : (conv?.guestName ?? "Guest");
+      return {
+        id: m.id as string,
+        conversationId: m.conversationId as string,
+        body: String(m.body).slice(0, 180),
+        createdAt: m.createdAt as string,
+        fromName,
+      };
+    }),
   };
 }

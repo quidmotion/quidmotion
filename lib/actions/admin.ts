@@ -54,6 +54,14 @@ function fail(e: unknown): ActionResult {
   };
 }
 
+/**
+ * Form actions are typed as void. The value is still returned at runtime
+ * so the click-feedback toast can read ok / error / message.
+ */
+function formResult(result: ActionResult): void {
+  return result as unknown as void;
+}
+
 /** Supports both form action (FormData) and useActionState (prev, FormData). */
 function asFormData(a: unknown, b?: unknown): FormData {
   if (a instanceof FormData) return a;
@@ -75,8 +83,10 @@ export async function reviewKycAction(
     revalidatePath("/admin/kyc");
     revalidatePath("/admin/users");
     revalidatePath("/dashboard/settings");
+    return formResult({ ok: true, message: "KYC updated" });
   } catch (e) {
-    console.error("[reviewKycAction]", fail(e));
+    console.error("[reviewKycAction]", e);
+    return formResult(fail(e));
   }
 }
 
@@ -106,8 +116,10 @@ export async function reviewPayoutAction(
     }
     revalidatePath("/admin/payouts");
     revalidatePath("/dashboard/withdraw");
+    return formResult({ ok: true, message: "Payout updated" });
   } catch (e) {
-    console.error("[reviewPayoutAction]", fail(e));
+    console.error("[reviewPayoutAction]", e);
+    return formResult(fail(e));
   }
 }
 
@@ -125,8 +137,10 @@ export async function setUserStatusAction(
     );
     revalidatePath("/admin/users");
     revalidatePath("/admin/support-staff");
+    return formResult({ ok: true, message: "User status updated" });
   } catch (e) {
-    console.error("[setUserStatusAction]", fail(e));
+    console.error("[setUserStatusAction]", e);
+    return formResult(fail(e));
   }
 }
 
@@ -144,8 +158,10 @@ export async function updateDocAction(
     );
     revalidatePath("/admin/content");
     revalidatePath("/documents");
+    return formResult({ ok: true, message: "Document saved" });
   } catch (e) {
-    console.error("[updateDocAction]", fail(e));
+    console.error("[updateDocAction]", e);
+    return formResult(fail(e));
   }
 }
 
@@ -164,8 +180,10 @@ export async function updateDepositWalletsAction(
     await settings.updateDepositWallets(staff.id, wallets);
     revalidatePath("/admin/settings");
     revalidatePath("/dashboard/deposit");
+    return formResult({ ok: true, message: "Deposit wallets saved" });
   } catch (e) {
-    console.error("[updateDepositWalletsAction]", fail(e));
+    console.error("[updateDepositWalletsAction]", e);
+    return formResult(fail(e));
   }
 }
 
@@ -183,8 +201,10 @@ export async function updateOfficialEmailsAction(
       provider: String(formData.get("email_provider") ?? "resend"),
     });
     revalidatePath("/admin/settings");
+    return formResult({ ok: true, message: "Emails saved" });
   } catch (e) {
-    console.error("[updateOfficialEmailsAction]", fail(e));
+    console.error("[updateOfficialEmailsAction]", e);
+    return formResult(fail(e));
   }
 }
 
@@ -216,8 +236,10 @@ export async function createPropertyAction(
     revalidatePath("/admin/properties");
     revalidatePath("/dashboard/properties");
     revalidatePath("/dashboard");
+    return formResult({ ok: true, message: "Property created" });
   } catch (e) {
-    console.error("[createPropertyAction]", fail(e));
+    console.error("[createPropertyAction]", e);
+    return formResult(fail(e));
   }
 }
 
@@ -259,8 +281,10 @@ export async function updatePropertyAction(
     await properties.updateProperty(staff.id, id, patch);
     revalidatePath("/admin/properties");
     revalidatePath("/dashboard/properties");
+    return formResult({ ok: true, message: "Property saved" });
   } catch (e) {
-    console.error("[updatePropertyAction]", fail(e));
+    console.error("[updatePropertyAction]", e);
+    return formResult(fail(e));
   }
 }
 
@@ -288,8 +312,10 @@ export async function reviewDepositAction(
     revalidatePath("/dashboard");
     revalidatePath("/dashboard/deposit");
     revalidatePath("/dashboard/transactions");
+    return formResult({ ok: true, message: "Deposit updated" });
   } catch (e) {
-    console.error("[reviewDepositAction]", fail(e));
+    console.error("[reviewDepositAction]", e);
+    return formResult(fail(e));
   }
 }
 
@@ -299,8 +325,10 @@ export async function refreshPricesAction(_formData?: FormData): Promise<void> {
     await cryptoSvc.adminRefreshPrices(admin.id);
     revalidatePath("/admin/settings");
     revalidatePath("/dashboard/deposit");
+    return formResult({ ok: true, message: "Prices refreshed" });
   } catch (e) {
-    console.error("[refreshPricesAction]", fail(e));
+    console.error("[refreshPricesAction]", e);
+    return formResult(fail(e));
   }
 }
 
@@ -312,8 +340,10 @@ export async function runGrowthAccrualAction(
     await growth.accrueAllUsersGrowth();
     revalidatePath("/dashboard");
     revalidatePath("/admin/settings");
+    return formResult({ ok: true, message: "Growth accrual finished" });
   } catch (e) {
-    console.error("[runGrowthAccrualAction]", fail(e));
+    console.error("[runGrowthAccrualAction]", e);
+    return formResult(fail(e));
   }
 }
 
@@ -343,8 +373,10 @@ export async function updateApyRulesAction(
     revalidatePath("/dashboard");
     revalidatePath("/");
     revalidatePath("/plans");
+    return formResult({ ok: true, message: "APY rules saved" });
   } catch (e) {
-    console.error("[updateApyRulesAction]", fail(e));
+    console.error("[updateApyRulesAction]", e);
+    return formResult(fail(e));
   }
 }
 
@@ -386,8 +418,10 @@ export async function updateSupportPrivilegesAction(
       privileges,
     );
     revalidatePath("/admin/support-staff");
+    return formResult({ ok: true, message: "Privileges saved" });
   } catch (e) {
-    console.error("[updateSupportPrivilegesAction]", fail(e));
+    console.error("[updateSupportPrivilegesAction]", e);
+    return formResult(fail(e));
   }
 }
 
@@ -403,8 +437,10 @@ export async function setSupportPasswordAction(
       String(formData.get("password") ?? ""),
     );
     revalidatePath("/admin/support-staff");
+    return formResult({ ok: true, message: "Password updated" });
   } catch (e) {
-    console.error("[setSupportPasswordAction]", fail(e));
+    console.error("[setSupportPasswordAction]", e);
+    return formResult(fail(e));
   }
 }
 
@@ -431,8 +467,10 @@ export async function reviewTransferAction(
     revalidatePath("/dashboard");
     revalidatePath("/dashboard/transfer");
     revalidatePath("/dashboard/transactions");
+    return formResult({ ok: true, message: "Transfer updated" });
   } catch (e) {
-    console.error("[reviewTransferAction]", fail(e));
+    console.error("[reviewTransferAction]", e);
+    return formResult(fail(e));
   }
 }
 

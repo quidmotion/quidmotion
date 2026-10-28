@@ -26,6 +26,7 @@ async function requireUser() {
 
 function fail(e: unknown): Result {
   return {
+    ok: false,
     error: isAppError(e)
       ? e.message
       : e instanceof Error
@@ -165,7 +166,7 @@ export async function submitKycAction(formData: FormData): Promise<Result> {
         const f = file as File;
         if (f.size > 0) {
           if (f.size > 8 * 1024 * 1024) {
-            return { error: `${field} exceeds 8MB limit` };
+            return { ok: false, error: `${field} exceeds 8MB limit` };
           }
           const buf = Buffer.from(await f.arrayBuffer());
           const rel = await kyc.saveKycFile(

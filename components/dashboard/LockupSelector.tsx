@@ -8,7 +8,7 @@ export function LockupSelector({
   changeLockupAction,
 }: {
   currentLockupDays: number;
-  changeLockupAction: (formData: FormData) => Promise<void>;
+  changeLockupAction: (formData: FormData) => Promise<unknown>;
 }) {
   const [isPending, startTransition] = useTransition();
 

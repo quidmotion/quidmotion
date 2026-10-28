@@ -41,3 +41,9 @@ CREATE TABLE IF NOT EXISTS support_messages (
 );
 CREATE INDEX IF NOT EXISTS support_msg_conv_created_idx
   ON support_messages(conversation_id, created_at);
+
+-- Data API cannot see a new public table until this grant exists.
+-- service_role only; anon/authenticated must not read support transcripts.
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.support_privileges TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.support_conversations TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.support_messages TO service_role;

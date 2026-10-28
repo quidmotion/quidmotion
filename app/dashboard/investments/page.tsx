@@ -34,6 +34,7 @@ export default async function InvestmentsPage() {
     const lockupDays = Number(formData.get("lockupDays"));
     const validLockup = lockupDays as 90 | 180 | 365;
     await updateLockup(s.user.id, validLockup);
+    return { ok: true as const, message: "Lock-up updated" };
   }
 
   return (

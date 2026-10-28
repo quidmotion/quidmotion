@@ -74,6 +74,93 @@ body {
   animation: none;
 }
 
+/* Click feedback: press, ripple, in-flight spinner, top progress */
+button,
+[role="button"],
+input[type="submit"],
+input[type="button"],
+summary {
+  cursor: pointer;
+}
+button:active:not(:disabled),
+[role="button"]:active,
+input[type="submit"]:active,
+input[type="button"]:active,
+summary:active {
+  transform: scale(0.96);
+  filter: brightness(1.15);
+}
+a:active {
+  opacity: 0.7;
+}
+.qm-chat-fab:active {
+  animation: none;
+  transform: scale(0.92);
+}
+
+.qm-ripple {
+  position: fixed;
+  z-index: 90;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  margin-top: -7px;
+  border-radius: 999px;
+  pointer-events: none;
+  background: rgba(255, 255, 255, 0.55);
+  animation: qm-ripple 420ms ease-out forwards;
+}
+@keyframes qm-ripple {
+  to {
+    transform: scale(14);
+    opacity: 0;
+  }
+}
+
+.qm-busy {
+  position: relative;
+  pointer-events: none !important;
+  opacity: 0.72;
+}
+.qm-busy::after {
+  content: "";
+  width: 0.85em;
+  height: 0.85em;
+  margin-left: 0.45em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 999px;
+  display: inline-block;
+  flex: none;
+  animation: qm-spin 0.6s linear infinite;
+}
+@keyframes qm-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+#qm-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 80;
+  height: 3px;
+  width: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, #8b5cf6, #ec4899);
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.75);
+  transition: width 0.25s ease, opacity 0.3s ease;
+}
+#qm-progress[data-on="1"] {
+  width: 68%;
+  opacity: 1;
+}
+#qm-progress[data-on="2"] {
+  width: 100%;
+  opacity: 0;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
